@@ -1,8 +1,8 @@
 CC = g++
 CFLAGS = -O2 -I/usr/include/x86_64-linux-gnu  
-CERESINCLUDES = -I/workspace1/oliver-rs/cereslib/include -I/workspace1/oliver-rs/cereslib/include/ceres/internal/miniglog
+CERESINCLUDES = -I../cereslib/include -I../cereslib/include/ceres/internal/miniglog
 LFLAGS = ./libcpfapack.a ./libpfapack.a -llapack -lcblas -lblas -lgfortran
-CERESLIBS = ./workspace1/oliver-rs/cereslib/lib/libceres.a
+CERESLIBS = ../cereslib/lib/libceres.a
 
 all: tests.out ceres-optim.out
 
