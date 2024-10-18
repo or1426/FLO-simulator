@@ -1,6 +1,8 @@
 # FLO-simulator
 Implementation of algorithms I developed for https://arxiv.org/abs/2307.12702
 
+The state of this code is very much "works on my machine". Feel free to contact me if you run into issues.
+
 ## Dependencies
 See the included makefile
 
