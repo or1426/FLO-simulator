@@ -41,8 +41,6 @@ std::vector<double> reorder_vec(std::vector<int> x){
   return P;
 }
 
-
-
 std::complex<double> cb_inner_prod(int qubits, std::vector<int> x, std::vector<double> R, std::complex<double> phase, std::vector<double> l){
   std::complex<double> prefactor = phase*(1-2*(qubits % 2));
   for(const double& li : l){
@@ -90,48 +88,19 @@ std::complex<double> cb_inner_prod(int qubits, std::vector<int> x, std::vector<d
     T[dense_fortran(4*i+2, 4*i+4, 2*qubits)] = -val;
     T[dense_fortran(4*i+4, 4*i+2, 2*qubits)] = val;
   }
-  //std::cout << "T = " << std::endl;
-  //print_fortran(T, 2*qubits);
   std::vector<double> scratch(2*qubits*2*qubits);
   std::fill(scratch.begin(), scratch.end(), 0);
   matmul_square_double(x_vec_matrix, perm, scratch, 2*qubits);
   matmul_square_double(CblasNoTrans, CblasTrans, scratch, R, perm,2*qubits);
 
-  //std::cout << "big conjugating matrix" << std::endl;
-  //print_fortran(perm, 2*qubits);
 
   matrix_conjugate_inplace_double(T, perm, 2*qubits);
-  //std::cout << "T'" << std::endl;
-  //print_fortran(T, 2*qubits);
-
 
   int w = x_vec_weight; //just a shorthand
   int G_dim = 4*qubits+w;
   std::vector<std::complex<double> > G(G_dim*G_dim);
   std::fill(G.begin(), G.end(), 0);
-  /*
-    std::cout << "w = " << w << " 2*qubits = " << 2*qubits << std::endl;
-    realM[dense_fortran(1,1,2*qubits)] = 1;
-    realM[dense_fortran(1,2,2*qubits)] = 1;
-    realM[dense_fortran(2,1,2*qubits)] = 1;
-    realM[dense_fortran(2,2,2*qubits)] = 1;
 
-    realM[dense_fortran(1,3,2*qubits)] = 2;
-    realM[dense_fortran(1,4,2*qubits)] = 2;
-    realM[dense_fortran(2,3,2*qubits)] = 2;
-    realM[dense_fortran(2,4,2*qubits)] = 2;
-
-    realM[dense_fortran(3,1,2*qubits)] = 3;
-    realM[dense_fortran(3,2,2*qubits)] = 3;
-    realM[dense_fortran(4,1,2*qubits)] = 3;
-    realM[dense_fortran(4,2,2*qubits)] = 3;
-
-    realM[dense_fortran(3,3,2*qubits)] = 4;
-    realM[dense_fortran(3,4,2*qubits)] = 4;
-    realM[dense_fortran(4,3,2*qubits)] = 4;
-    realM[dense_fortran(4,4,2*qubits)] = 4;
-    print_fortran(realM, 2*qubits);
-  */
   matrix_add_block(G, realM, 1.i,
                    G_dim, 2*qubits,
                    w, w,
@@ -170,14 +139,10 @@ std::complex<double> cb_inner_prod(int qubits, std::vector<int> x, std::vector<d
 
   std::complex<double> pfaffian=0;
   int info;
-  //print_fortran(G, G_dim);
-  //return 0;
   /* Compute the pfaffian using the lower triangle and the Parlett-Reid
      algorithm */
-  //print_fortran(G, G_dim);
   info = skpfa(G_dim, &G[0], &pfaffian, "L", "P");
 
-  //std::cout << "prefactor = " << prefactor << std::endl;
   return prefactor*pfaffian;
 }
 
@@ -256,13 +221,10 @@ DecomposedPassive decompose_passive_flo_unitary(std::vector<double> R,int qubits
     sum += lambdas[i]/2.;
   }
   std::complex<double> new_phase = std::exp(sum*1.i);
-  //std::cout << phase << ", " << new_phase << ", " << phase/new_phase << std::endl;
 
   //we might be wrong by a factor of minus 1 in new phase
   //if we are we have to add 2pi to lambda_0
-
   if(abs(phase - new_phase) > 1e-10){
-    //std::cout << "phases " << phase << " and " << new_phase << "don't match!"<<std::endl;
     lambdas[0] += 2*M_PI;
     new_phase = -new_phase;
   }
@@ -300,7 +262,6 @@ std::complex<double> inner_prod_internal(int qubits, std::vector<double> A1, Dec
     }
   }
 
-  //matrix_conjugate_inplace_double(M, KT_A1RT,2*qubits);
   std::vector<double> KT_A1RT2(2*qubits*2*qubits);
   std::fill(KT_A1RT2.begin(), KT_A1RT2.end(), 0.);
   for(int i = 0; i < qubits; i++){
@@ -316,20 +277,14 @@ std::complex<double> inner_prod_internal(int qubits, std::vector<double> A1, Dec
   for(int i = 0; i < 2*qubits; i++){
     //this will inly work if your complex number type is actually two adjacent doubles
     //with the first being the real part and the second the imaginary part
-
-    cblas_daxpy(2*qubits, -1., &M[dense_fortran(1,i+1,2*qubits)],1, ((double *)&G[dense_fortran(1,i+1,G_dim)])+1,2);
-    
-    /*for(int j = 0; j < 2*qubits; j++){
-      G[dense_fortran(i+1, j+1, G_dim)] = (-1.i)*M[dense_fortran(i+1,j+1,2*qubits)];
-    }
-    */
+    cblas_daxpy(2*qubits, -1., &M[dense_fortran(1,i+1,2*qubits)],1, ((double *)&G[dense_fortran(1,i+1,G_dim)])+1,2);    
   }
 
   for(int i = 0; i < qubits; i++){
     G[dense_fortran(2*i+1, 2*i+2, G_dim)] +=std::sin(p.l[i]/2.);
     G[dense_fortran(2*i+2, 2*i+1, G_dim)] +=-std::sin(p.l[i]/2.);
   }
-  //const auto t5 = std::chrono::steady_clock::now();
+
   //bottom right of G
   for(int i = 0; i < qubits/2;i++){
     double angle = (-A1[i] + A2[i])/2;
@@ -362,14 +317,6 @@ std::complex<double> inner_prod_internal(int qubits, std::vector<double> A1, Dec
       G[dense_fortran(j+1, 2*qubits+4*i+4, G_dim)] *= std::cos(angle);
     }
   }
-  //bottom left
-  /*
-  for(int i = 0; i < 2*qubits; i++){    
-    for(int j = 0; j < 2*qubits; j++){
-      G[dense_fortran(2*qubits+i+1, j+1, G_dim)] = -G[dense_fortran(j+1, 2*qubits+i+1, G_dim)];
-    }
-  }
-  */
 
   std::complex<double> pfaffian=0;
   int info;
