@@ -7,9 +7,10 @@
 #include <complex.h>
 #include <cmath>
 #include <lapack.h>
+
 #include "pfapack.h"
 #include "wrappers.h"
-
+#include "so-factorization.h"
 
 typedef struct DecomposedPassive{
   //R is the orthogonal matrix implementing a passive FLO unitary K such that

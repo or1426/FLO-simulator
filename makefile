@@ -7,7 +7,7 @@ CERESLIBS = ../cereslib/lib/libceres.a
 all: tests.out ceres-optim.out
 
 tests:
-	$(CC) $(CFLAGS) wrappers.cc ff.cc tests.cc -o tests.out $(LFLAGS)
+	$(CC) $(CFLAGS) wrappers.cc so-factorization.cc ff.cc tests.cc -o tests.out $(LFLAGS)
 
 ceres-optim: ceres-optim.cc
 	$(CC) $(CFLAGS) $(CERESINCLUDES) wrappers.cc ff.cc ceres-optim.cc -o ceres-optim.out $(LFLAGS) $(CERESLIBS)
