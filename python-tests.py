@@ -35,7 +35,7 @@ def compute_majs():
 def make_passive_decomp_tests(seed=1000, count=2):
     rng = default_rng(seed)
     
-    print(count)
+    #print(count)
     
     for _ in range(count):        
         A = rng.random((qubits,qubits), dtype=np.float64)
@@ -48,7 +48,8 @@ def make_passive_decomp_tests(seed=1000, count=2):
         phase = np.exp(-(1.j/4.)*(alpha @ np.kron(np.eye(qubits,dtype=complex), np.array([[0,1],[-1,0]],dtype=complex))).trace())       
 
         
-        obj = {"qubits": qubits,
+        obj = {"type": "passive-decomp", 
+               "qubits": qubits,
                "R": list(R.T.reshape(2*qubits*2*qubits)),
                "phaseReal": phase.real,
                "phaseImag": phase.imag,
@@ -60,7 +61,7 @@ def make_passive_decomp_tests(seed=1000, count=2):
 def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False):
     rng = default_rng(seed)
     
-    print(count)
+    #print(count)
     
     for _ in range(count):        
         A = rng.random((qubits,qubits), dtype=np.float64)
@@ -109,7 +110,8 @@ def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False)
             if c != 0:
                 y ^= (1<<(i//2))
         val = vec[y]
-        obj = {"qubits": qubits,
+        obj = {"type": "cb-inner-product", 
+               "qubits": qubits,
                "R": list(R.T.reshape(2*qubits*2*qubits)),
                "l": list(l),
                "c_vec": list(map(int,c_vec)),
@@ -124,7 +126,7 @@ def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False)
 def make_two_flo_state_inner_prod_tests(seed=1000, count=2):
     rng = default_rng(seed)
     import json
-    print(count)
+    #print(count)
     majs = compute_majs()
     for _ in range(count):        
         A1 = rng.random((qubits,qubits), dtype=np.float64)
@@ -175,7 +177,8 @@ def make_two_flo_state_inner_prod_tests(seed=1000, count=2):
         for i, li in enumerate(l1):
             vec = linalg.expm(-li*(majs[4*i]@majs[4*i+2] -majs[4*i+1]@majs[4*i+3])/2.) @ vec
         correct_prod = vec[0]
-        obj = {"qubits": qubits,
+        obj = {"type": "flo-inner-product",
+               "qubits": qubits,
                "phase1R":K1[0][0].real,
                "phase1I":K1[0][0].imag,
                "phase2R":K2[0][0].real,
@@ -203,7 +206,7 @@ if __name__ == "__main__":
 
     if args.inner_product > 0:
         make_two_flo_state_inner_prod_tests(seed=args.seed, count = args.inner_product)
-    elif args.cb_inner_product > 0:
+    if args.cb_inner_product > 0:
         make_comp_basis_inner_product_tests(seed=args.seed, count = args.cb_inner_product, paired_qubits=True)
-    elif args.decompose_passive > 0:
-        make_passive_decomp_tests(seed=args.seed, count=args.cb_inner_product)
+    if args.decompose_passive > 0:
+        make_passive_decomp_tests(seed=args.seed, count=args.decompose_passive)
