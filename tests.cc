@@ -94,7 +94,81 @@ double cb_inner_prod_adjacent_qubits_test(json j){
   return abs(val - pythonval);  
 }
 
+double symplectic_orthogonal_factorize_test(json j){
+  int qubits = j["qubits"];
+  std::vector<double> R = j["R"];
 
+  std::vector<double> Q1(4*qubits*qubits);
+  std::vector<double> Q2(4*qubits*qubits);
+
+  std::vector<double> T = symplectic_orthogonal_factorize(qubits, R, Q1, Q2);
+  //things to test:
+  // 1. Q1 & Q2 are orthogonal
+  // 2. Q1 & Q2 are symplectic
+  // Q1 R Q2 = T
+  // T has the correct structure
+  std::vector<double> id1 = matmul_square_double(CblasNoTrans, CblasTrans, Q1, Q1, 2*qubits);
+  std::vector<double> id2 = matmul_square_double(CblasNoTrans, CblasTrans, Q2, Q2, 2*qubits);
+
+  std::vector<double> J(4*qubits*qubits, 0.);//symplectic form
+  for(int i = 0; i < qubits; i++){
+    J[dense_fortran(2*i+1, 2*i+2, 2*qubits)] = 1;
+    J[dense_fortran(2*i+2, 2*i+1, 2*qubits)] = -1;
+  }
+
+  std::vector<double> J1 = matmul_square_double(CblasNoTrans, CblasNoTrans, Q1, J, 2*qubits);
+  J1 = matmul_square_double(CblasNoTrans, CblasTrans, J1, Q1, 2*qubits);
+  
+  std::vector<double> J2 = matmul_square_double(CblasNoTrans, CblasNoTrans, Q2, J, 2*qubits);
+  J2 = matmul_square_double(CblasNoTrans, CblasTrans, J2, Q2, 2*qubits);
+
+  std::vector<double> T2 = matmul_square_double(CblasNoTrans, CblasNoTrans, Q1, R, 2*qubits);
+  T2 = matmul_square_double(CblasNoTrans, CblasNoTrans, T2, Q2, 2*qubits);
+
+  double max_error = -1;
+  for(int i = 0; i < 2*qubits; i++){
+    for(int j = 0; j < 2*qubits; j++){
+      //test both matrices which should be identity matrices
+      if(i == j){
+	max_error = std::max(max_error, abs(id1[dense_fortran(i+1, j+1, 2*qubits)] - 1));
+	max_error = std::max(max_error, abs(id2[dense_fortran(i+1, j+1, 2*qubits)] - 1));
+      }else{
+	max_error = std::max(max_error, abs(id1[dense_fortran(i+1, j+1, 2*qubits)]));
+	max_error = std::max(max_error, abs(id2[dense_fortran(i+1, j+1, 2*qubits)]));
+      }
+      
+      //test both matrices which should be symplectic forms
+      max_error = std::max(max_error, abs(J1[dense_fortran(i+1, j+1, 2*qubits)] - J[dense_fortran(i+1, j+1, 2*qubits)]));
+      max_error = std::max(max_error, abs(J2[dense_fortran(i+1, j+1, 2*qubits)] - J[dense_fortran(i+1, j+1, 2*qubits)]));
+      
+      //test that the factorization closely reproduces the original matrix
+      max_error = std::max(max_error, abs(T2[dense_fortran(i+1, j+1, 2*qubits)] - T[dense_fortran(i+1, j+1, 2*qubits)]));
+      
+    }
+  }
+  //test that T has the right form
+  //T = reshuffled(T,qubits);
+  for(int i = 0; i < qubits; i++){
+    for(int j = 0; j < qubits; j++){
+      //test top left block is identity
+      if(i == j){
+	max_error = std::max(max_error, abs(T[dense_fortran(2*i+1, 2*j+1, 2*qubits)] - 1));
+      }else{
+	max_error = std::max(max_error, abs(T[dense_fortran(2*i+1, 2*j+1, 2*qubits)]));
+      }
+      //test top right and bottom left blocks are 0
+      max_error = std::max(max_error, abs(T[dense_fortran(2*i+1, 2*j+2, 2*qubits)]));
+      max_error = std::max(max_error, abs(T[dense_fortran(2*i+2, 2*j+1, 2*qubits)]));
+      
+      //test bottom right block is direct sum of 2x2 blocks
+      if(abs(i-j) > 1){
+	max_error = std::max(max_error, abs(T[dense_fortran(2*i+2, 2*j+2, 2*qubits)]));
+      }  
+    }
+  }
+  
+  return max_error;
+}
 
 int main(int argc, char * argv[])
 {
@@ -104,10 +178,11 @@ int main(int argc, char * argv[])
   double max_error_decompose_passive = -1;
   double max_error_flo_ip = -1;
   double max_error_cb_ip = -1;
-
+  double max_error_so = -1;
   int decompose_passive_count = 0;
   int flo_ip_count = 0;
   int cb_ip_count = 0;
+  int so_count = 0;
   while(true){
     //this try/except thing seems suboptimal/ugly
     //I think this json library really doesn't expect to be dealing with streams of json objects
@@ -132,6 +207,12 @@ int main(int argc, char * argv[])
 	if(val > max_error_cb_ip){
 	  max_error_cb_ip = val;
 	}
+      }else if(j["type"] == std::string("symplectic-orthogonal-decomposition")){
+	so_count += 1;
+	double val = symplectic_orthogonal_factorize_test(j);
+	if(val > max_error_so){
+	  max_error_so = val;
+	}
       }
       
       count += 1;
@@ -144,7 +225,7 @@ int main(int argc, char * argv[])
   std::cout << std::setw(20) << "decompose passive " << std::setw(20) << max_error_decompose_passive <<decompose_passive_count << std::endl;
   std::cout << std::setw(20) << "cb inner product " << std::setw(20) << max_error_cb_ip << cb_ip_count << std::endl;
   std::cout << std::setw(20) << "flo inner product " << std::setw(20) << max_error_flo_ip << flo_ip_count << std::endl;
-
+  std::cout << std::setw(20) << "so decomposition " << std::setw(20) << max_error_so << so_count << std::endl;
   
   /*
   std::string helpmessage("args:\n\t-d for testing the decomposition of passive FLO unitaries\n\t-c for computational basis inner products\n\t-i for general inner products");

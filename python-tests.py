@@ -6,9 +6,9 @@ from scipy import linalg
 import sys 
 import json
 
-qubits = 8
 
-def compute_majs():
+
+def compute_majs(qubits):
     pI = np.eye(2, dtype=complex)
     pX = np.array([[0,1],[1,0]], dtype=complex)
     pY = np.array([[0,-1j],[1j,0]], dtype=complex)
@@ -32,7 +32,19 @@ def compute_majs():
     return majs
 
 
-def make_passive_decomp_tests(seed=1000, count=2):
+def make_symplectic_orthogonal_decompostion_test(seed=1000, count = 2, qubits = 4):
+    rng = default_rng(seed)
+    
+    for _ in range(count):
+        A = rng.random((2*qubits,2*qubits), dtype=np.float64)
+        A = (A - A.T)/2.
+        R = linalg.expm(A)
+        obj = {"type": "symplectic-orthogonal-decomposition", 
+               "qubits": qubits,
+               "R": list(R.T.reshape(2*qubits*2*qubits))
+               }
+        print(json.dumps(obj))
+def make_passive_decomp_tests(seed=1000, count=2, qubits = 4):
     rng = default_rng(seed)
     
     #print(count)
@@ -58,7 +70,7 @@ def make_passive_decomp_tests(seed=1000, count=2):
 
 
 
-def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False):
+def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False, qubits = 4):
     rng = default_rng(seed)
     
     #print(count)
@@ -92,7 +104,7 @@ def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False)
             if c != 0:
                 y ^= (1<<(i//2))
                        
-        majs = compute_majs()
+        majs = compute_majs(qubits)
         exponent = np.zeros((2**qubits, 2**qubits), dtype=complex)            
         for i in range(2*qubits):
             for j in range(i):
@@ -123,11 +135,11 @@ def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False)
         print(json.dumps(obj))
         
 
-def make_two_flo_state_inner_prod_tests(seed=1000, count=2):
+def make_two_flo_state_inner_prod_tests(seed=1000, count=2, qubits = 4):
     rng = default_rng(seed)
     import json
     #print(count)
-    majs = compute_majs()
+    majs = compute_majs(qubits)
     for _ in range(count):        
         A1 = rng.random((qubits,qubits), dtype=np.float64)
         B1 = rng.random((qubits,qubits), dtype=np.float64)
@@ -200,13 +212,16 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--inner-product',default="0",type=int, help="number of FLO inner products to test (defaults to 0)")
     parser.add_argument('-c', '--cb-inner-product',default="0",type=int, help="number of computational basis inner products to test (defaults to 0)")
     parser.add_argument('-d', '--decompose-passive',default="0",type=int, help="number passive FLO unitary decompositions to test (defaults to 0)")
+    parser.add_argument('-o', '--symplectic-orthogonal',default="0",type=int, help="number symplectic orthogonal factorizations to test (defaults to 0)")
     parser.add_argument('-s', '--seed',default="1000",type=int, help="random seed")
-    
+    parser.add_argument('-q', '--qubits',default="4",type=int, help="number of qubits")
     args = parser.parse_args(sys.argv[1:])
 
     if args.inner_product > 0:
-        make_two_flo_state_inner_prod_tests(seed=args.seed, count = args.inner_product)
+        make_two_flo_state_inner_prod_tests(seed=args.seed, count = args.inner_product, qubits=args.qubits)
     if args.cb_inner_product > 0:
-        make_comp_basis_inner_product_tests(seed=args.seed, count = args.cb_inner_product, paired_qubits=True)
+        make_comp_basis_inner_product_tests(seed=args.seed, count = args.cb_inner_product, paired_qubits=True, qubits=args.qubits)
     if args.decompose_passive > 0:
-        make_passive_decomp_tests(seed=args.seed, count=args.decompose_passive)
+        make_passive_decomp_tests(seed=args.seed, count=args.decompose_passive, qubits=args.qubits)
+    if args.symplectic_orthogonal > 0:
+        make_symplectic_orthogonal_decompostion_test(seed=args.seed, count=args.symplectic_orthogonal, qubits=args.qubits)

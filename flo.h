@@ -1,5 +1,5 @@
-#ifndef FLO_FID_FF_H
-#define FLO_FID_FF_H
+#ifndef FERMIONIC_LINEAR_OPTICS_H
+#define FERMIONIC_LINEAR_OPTICS_H
 #define lapack_complex_double std::complex<double>
 #include <iostream>
 #include <vector>

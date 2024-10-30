@@ -10,7 +10,7 @@
 #include "wrappers.h"
 #include <variant>
 
-std::vector<double>  symplectic_orthogonal_factorize(int qubits, std::vector<double> A, std::vector<double> &Q1, std::vector<double> &Q2);
+std::vector<double> symplectic_orthogonal_factorize(int qubits, std::vector<double> A, std::vector<double> &Q1, std::vector<double> &Q2);
 
 struct SymplecticGivens {
   double c;
@@ -53,5 +53,11 @@ void apply_left(std::variant<SymplecticGivens, SymplecticHouseholder> op, std::v
 
 void apply_right(std::variant<SymplecticGivens, SymplecticHouseholder> op, std::vector<double> &m, int qubits);
 
-
+//swap from the symplectic form
+//                   [ 0 1]
+// \bigoplus_{j=1}^n [-1 0]
+//to the one
+//[ 0 I]
+//[-I 0]
+std::vector<double> reshuffled(std::vector<double> A, int n);
 #endif

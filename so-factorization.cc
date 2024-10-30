@@ -354,6 +354,8 @@ std::vector<double> symplectic_orthogonal_factorize(int qubits, std::vector<doub
     }
   }
 
+  A = matmul_square_double(matmul_square_double(Q1, A, 2*qubits), Q2, 2*qubits);
+
   for(auto it = left_ops.rbegin(); it != left_ops.rend(); ++it){
     apply_right(*it, Q1, qubits);
   }
