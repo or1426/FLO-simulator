@@ -1,4 +1,4 @@
-#include "ff.h"
+#include "flo.h"
 #include "json.hpp"
 #include <iomanip>
 using json = nlohmann::json;
@@ -31,18 +31,18 @@ double decompose_passive_test(json j){
   for(int i = 0; i < qubits; i++){
     double c = std::cos(p.l[i]);
     double s = std::sin(p.l[i]);
-    std::vector<double> errors(4);
-    
-    errors[0] = abs(c - R[dense_fortran(2*i+1, 2*i+1, 2*qubits)]);
-    errors[1] = abs(c - R[dense_fortran(2*i+2, 2*i+2, 2*qubits)]);
-    errors[2] = abs(s - R[dense_fortran(2*i+1, 2*i+2, 2*qubits)]);
-    errors[3] = abs(s + R[dense_fortran(2*i+2, 2*i+1, 2*qubits)]);
-    for(const double &error : errors){      
-      if(error > max_error){
-	max_error = error;
-      }
+
+    R[dense_fortran(2*i+1, 2*i+1, 2*qubits)] -= c;
+    R[dense_fortran(2*i+2, 2*i+2, 2*qubits)] -= c;
+    R[dense_fortran(2*i+1, 2*i+2, 2*qubits)] -= s;
+    R[dense_fortran(2*i+2, 2*i+1, 2*qubits)] += s;
+  }
+
+  for(auto it = R.begin(); it != R.end(); it++){
+    if(abs(*it) > max_error){
+      max_error = abs(*it);
     }
-  }  
+  }
   return max_error;
 }
 
