@@ -44,6 +44,87 @@ def make_symplectic_orthogonal_decompostion_test(seed=1000, count = 2, qubits = 
                "R": list(R.T.reshape(2*qubits*2*qubits))
                }
         print(json.dumps(obj))
+
+def make_aka_kak_test(seed=1000, count = 2, qubits = 4):
+    rng = default_rng(seed)
+    majs = compute_majs(qubits)
+    for _ in range(count):
+        A = rng.random((qubits,qubits), dtype=np.float64)
+        B = rng.random((qubits,qubits), dtype=np.float64)
+        A = (A - A.T)/2
+        B = (B + B.T)/2
+        alpha = (np.kron(A, np.eye(2,dtype=np.float64)) + np.kron(B, np.array([[0,1],[-1,0]],dtype=np.float64)))
+
+        R = linalg.expm(-alpha)
+        phase = np.exp(-(1.j/4.)*(alpha @ np.kron(np.eye(qubits,dtype=complex), np.array([[0,1],[-1,0]],dtype=complex))).trace())
+        
+        l1 = list(rng.random(qubits//2, dtype=np.float64))
+        l2 = list(rng.random(qubits//2, dtype=np.float64))
+
+        print("angles - ", end='',file=sys.stderr)
+        for a,b in zip(l1,l2):
+            print((a+b)/2, end = ", ",file=sys.stderr)
+        print('',file=sys.stderr)
+        majs = compute_majs(qubits)
+        exponent_alpha = np.zeros_like(majs[0])
+        exponent_l1 = np.zeros_like(majs[0])
+        exponent_l2 = np.zeros_like(majs[0])
+
+        for i in range(qubits//2):
+            exponent_l1 += l1[i] * (majs[4*i]@majs[4*i+2] - majs[4*i+1]@majs[4*i+3])/2.
+            exponent_l2 += l2[i] * (majs[4*i]@majs[4*i+2] - majs[4*i+1]@majs[4*i+3])/2.
+        
+        for i in range(2*qubits):            
+            for j in range(2*qubits):
+                exponent_alpha += alpha[i][j]*majs[i]@majs[j]/4.
+        print("python passive phase", linalg.expm(exponent_alpha)[0,0], file=sys.stderr)
+        mat = linalg.expm(exponent_l1) @ linalg.expm(exponent_alpha) @ linalg.expm(exponent_l2)
+        print("00 inner prod", mat[0][0], file=sys.stderr)
+        print(l1, file=sys.stderr)
+        print(l2, file=sys.stderr)
+        l1A = np.zeros_like(R)
+        l2A = np.zeros_like(R)
+
+        for i in range(qubits//2):
+            l1A[4*i, 4*i+2] = l1[i]
+            l1A[4*i+1, 4*i+3] = -l1[i]
+            l1A[4*i+2, 4*i] = -l1[i]
+            l1A[4*i+3, 4*i+1] = l1[i]
+
+            l2A[4*i, 4*i+2] = l2[i]
+            l2A[4*i+1, 4*i+3] = -l2[i]
+            l2A[4*i+2, 4*i] = -l2[i]
+            l2A[4*i+3, 4*i+1] = l2[i]
+        
+
+        U = linalg.expm(-l2A) @ R @ linalg.expm(-l1A)
+        np.set_printoptions(linewidth=140, precision=3)
+        
+        print("python U", file=sys.stderr)
+        print(U, file=sys.stderr)
+        print("",file=sys.stderr)
+        T, Z = linalg.schur(U, output="real", overwrite_a=False)
+        print(T, file=sys.stderr)
+        exponent = np.zeros_like(majs[0])
+
+        for i in range(qubits):
+            theta = np.arctan2(abs(T[2*i, 2*i+1]), T[2*i, 2*i])
+            exponent += (1/2.)*theta*majs[2*i] @ majs[2*i+1]
+            
+        print("python phase: ", linalg.expm(exponent)[0,0], file=sys.stderr)
+        
+        obj = {"type": "aka_kak", 
+               "qubits": qubits,
+               "R": list(R.T.reshape(2*qubits*2*qubits)),
+               "lambda1": l1,
+               "lambda2": l2,
+               "phaseReal": phase.real,
+               "phaseImag": phase.imag,
+               }
+        print(json.dumps(obj))
+
+
+        
 def make_passive_decomp_tests(seed=1000, count=2, qubits = 4):
     rng = default_rng(seed)
     
@@ -56,10 +137,15 @@ def make_passive_decomp_tests(seed=1000, count=2, qubits = 4):
         B = (B + B.T)/2
         alpha = (np.kron(A, np.eye(2,dtype=np.float64)) + np.kron(B, np.array([[0,1],[-1,0]],dtype=np.float64)))
 
-        R = linalg.expm(alpha)
+        R = linalg.expm(-alpha)
         phase = np.exp(-(1.j/4.)*(alpha @ np.kron(np.eye(qubits,dtype=complex), np.array([[0,1],[-1,0]],dtype=complex))).trace())       
+        majs = compute_majs(qubits)
 
-        
+        exponent = np.zeros_like(majs[0])
+        for i in range(2*qubits):
+            for j in range(2*qubits):
+                exponent += (alpha[i][j]/4.) * majs[i]@majs[j]
+        print("python phases", phase, linalg.expm(exponent)[0,0], file=sys.stderr)
         obj = {"type": "passive-decomp", 
                "qubits": qubits,
                "R": list(R.T.reshape(2*qubits*2*qubits)),
@@ -82,7 +168,7 @@ def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False,
         B = (B + B.T)/2
         alpha = (np.kron(A, np.eye(2,dtype=np.float64)) + np.kron(B, np.array([[0,1],[-1,0]],dtype=np.float64)))
 
-        R = linalg.expm(alpha)
+        R = linalg.expm(-alpha)
         phase = np.exp(-(1.j/4.)*(alpha @ np.kron(np.eye(qubits,dtype=complex), np.array([[0,1],[-1,0]],dtype=complex))).trace())
 
         l = rng.random(qubits//2, dtype=np.float64)
@@ -153,17 +239,17 @@ def make_two_flo_state_inner_prod_tests(seed=1000, count=2, qubits = 4):
         B2 = (B2 + B2.T)/2
         alpha2 = (np.kron(A2, np.eye(2,dtype=np.float64)) + np.kron(B2, np.array([[0,1],[-1,0]],dtype=np.float64)))
 
-        R1 = linalg.expm(alpha1)
-        R2 = linalg.expm(alpha2)
+        R1 = linalg.expm(-alpha1)
+        R2 = linalg.expm(-alpha2)
         
         l1 = rng.random(qubits//2, dtype=np.float64)
         l2 = rng.random(qubits//2, dtype=np.float64)
-        a = np.zeros((2*qubits, 2*qubits), dtype=float)
-        for i in range(qubits//2):
-            a[4*i][4*i+2] = l1[i]
-            a[4*i+2][4*i] = -l1[i]
-            a[4*i+1][4*i+3] = -l1[i]
-            a[4*i+3][4*i+1] = l1[i]
+        #a = np.zeros((2*qubits, 2*qubits), dtype=float)
+        #for i in range(qubits//2):
+        #    a[4*i][4*i+2] = l1[i]
+        #    a[4*i+2][4*i] = -l1[i]
+        #    a[4*i+1][4*i+3] = -l1[i]
+        #    a[4*i+3][4*i+1] = l1[i]
 
 
             
@@ -171,7 +257,7 @@ def make_two_flo_state_inner_prod_tests(seed=1000, count=2, qubits = 4):
         exponent2 = np.zeros((2**qubits, 2**qubits), dtype=complex)
         for i in range(2*qubits):
             for j in range(2*qubits):
-                exponent1 += majs[i]@majs[j]*alpha1[i][j]/4
+                exponent1 += majs[i]@majs[j]*alpha1[i][j]/4.
                 exponent2 += majs[i]@majs[j]*alpha2[i][j]/4.
                 
         K1 = linalg.expm(exponent1)
@@ -213,6 +299,7 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--cb-inner-product',default="0",type=int, help="number of computational basis inner products to test (defaults to 0)")
     parser.add_argument('-d', '--decompose-passive',default="0",type=int, help="number passive FLO unitary decompositions to test (defaults to 0)")
     parser.add_argument('-o', '--symplectic-orthogonal',default="0",type=int, help="number symplectic orthogonal factorizations to test (defaults to 0)")
+    parser.add_argument('-k', '--aka-kak',default="0",type=int, help="number of aka to kak calculations to test (defaults to 0)")
     parser.add_argument('-s', '--seed',default="1000",type=int, help="random seed")
     parser.add_argument('-q', '--qubits',default="4",type=int, help="number of qubits")
     args = parser.parse_args(sys.argv[1:])
@@ -225,3 +312,5 @@ if __name__ == "__main__":
         make_passive_decomp_tests(seed=args.seed, count=args.decompose_passive, qubits=args.qubits)
     if args.symplectic_orthogonal > 0:
         make_symplectic_orthogonal_decompostion_test(seed=args.seed, count=args.symplectic_orthogonal, qubits=args.qubits)
+    if args.aka_kak > 0:
+        make_aka_kak_test(seed=args.seed, count=args.aka_kak, qubits=args.qubits)

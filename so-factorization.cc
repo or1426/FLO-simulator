@@ -227,7 +227,7 @@ std::vector<double> symplectic_orthogonal_factorize(int qubits, std::vector<doub
   LAPACK_dgees("V", "S", &selectfn, &qubits, &lower_right[0], &qubits, &sdim,
                &eigenvalues_r[0], &eigenvalues_i[0], &schurvectors[0],
                &qubits, &work[0], &lwork, &bwork[0], &info);
-
+  
   //A = Z*T*(Z**T).
   //where Z is the matrix of schur vectors
   //A is what was in lower_right before dgees, T is what is now in lower_right

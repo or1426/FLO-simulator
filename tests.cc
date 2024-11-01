@@ -14,6 +14,7 @@ double decompose_passive_test(json j){
   std::complex<double> phase = phaseR + 1.i * phaseI;
   
   DecomposedPassive p = decompose_passive_flo_unitary(R, qubits, phase);
+  std::cout << "c++ phase: " << phase << ", "<< p.phase << std::endl;
   double max_error = abs(p.phase - phase);
   
   matrix_conjugate_inplace_double(R, p.R, 2*qubits);
@@ -30,7 +31,7 @@ double decompose_passive_test(json j){
   
   for(int i = 0; i < qubits; i++){
     double c = std::cos(p.l[i]);
-    double s = std::sin(p.l[i]);
+    double s = -std::sin(p.l[i]);
 
     R[dense_fortran(2*i+1, 2*i+1, 2*qubits)] -= c;
     R[dense_fortran(2*i+2, 2*i+2, 2*qubits)] -= c;
@@ -170,6 +171,19 @@ double symplectic_orthogonal_factorize_test(json j){
   return max_error;
 }
 
+
+double aka_to_kak_test(json j){
+  int qubits = j["qubits"];
+  std::vector<double> lambda1 = j["lambda1"];
+  std::vector<double> lambda2 = j["lambda2"];
+  std::vector<double> R = j["R"];
+  double phaseR = j["phaseReal"];
+  double phaseI = j["phaseImag"];
+  int v =  aka_to_kak(qubits, lambda1, R, std::complex<double>(phaseR, phaseI), lambda2);
+
+  return 0;
+}
+
 int main(int argc, char * argv[])
 {
   json j;
@@ -179,10 +193,12 @@ int main(int argc, char * argv[])
   double max_error_flo_ip = -1;
   double max_error_cb_ip = -1;
   double max_error_so = -1;
+  double max_error_aka_kak = -1;
   int decompose_passive_count = 0;
   int flo_ip_count = 0;
   int cb_ip_count = 0;
   int so_count = 0;
+  int aka_kak_count = 0;
   while(true){
     //this try/except thing seems suboptimal/ugly
     //I think this json library really doesn't expect to be dealing with streams of json objects
@@ -213,6 +229,13 @@ int main(int argc, char * argv[])
 	if(val > max_error_so){
 	  max_error_so = val;
 	}
+	 
+	}else if(j["type"] == std::string("aka_kak")){
+	aka_kak_count += 1;
+	double val = aka_to_kak_test(j);
+	if(val > max_error_aka_kak){
+	  max_error_aka_kak = val;
+	}	
       }
       
       count += 1;

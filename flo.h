@@ -26,7 +26,7 @@ DecomposedPassive decompose_passive_flo_unitary(std::vector<double> R, int qubit
 std::complex<double> inner_prod(int qubits, std::vector<double> A1, std::vector<double> K1, std::complex<double> phase1,std::vector<double> A2, std::vector<double> K2, std::complex<double> phase2);
 //std::complex<double> cb_inner_prod_adjacent_qubits(int qubits, std::vector<int> y, DecomposedPassive &p, std::vector<double> T, std::vector<double> A);
 //std::complex<double> inner_prod_smooth(int qubits, std::vector<double> A1, std::vector<double> K1, std::complex<double> phase1,std::vector<double> A2, std::vector<double> K2, std::complex<double> phase2);
-
+int aka_to_kak(int qubits, std::vector<double> lambda1, std::vector<double> R, std::complex<double> phase, std::vector<double> lambda2);
 
 std::complex<double> cb_inner_prod_adjacent_qubits(int qubits, int y, DecomposedPassive &p, std::vector<double> A);
 #endif

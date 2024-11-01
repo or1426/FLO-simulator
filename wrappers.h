@@ -17,6 +17,8 @@ void print_fortran(std::vector<T> A, int n){
   }
 }
 
+
+
 int matmul_square_complex(std::vector<std::complex<double> > const& A, std::vector<std::complex<double> > const& B, std::vector<std::complex<double> > &C, int n);
 std::vector<std::complex<double> > matmul_square_complex(std::vector<std::complex<double> > const& A, std::vector<std::complex<double> > const& B,  int n);
 std::vector<std::complex<double> > matmul_square_complex(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, std::vector<std::complex<double> > const& A, std::vector<std::complex<double> > const& B,  int n);
@@ -26,7 +28,9 @@ int matmul_square_double(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, std::ve
 std::vector<double> matmul_square_double(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, std::vector<double> const& A, std::vector<double> const& B,   int n);
 int matrix_conjugate_inplace_complex(std::vector<std::complex<double> > &A,std::vector<std::complex<double> > const& B,int n);
 int matrix_conjugate_inplace_complex(std::vector<std::complex<double> > &A,std::vector<std::complex<double> > const& B,int n, CBLAS_TRANSPOSE trans);
-int matrix_conjugate_inplace_double(std::vector<double> &A,std::vector<double> const& B,int n);
-int matrix_conjugate_inplace_double(std::vector<double> &A,std::vector<double> const& B,int n, CBLAS_TRANSPOSE trans);
+
+int matrix_conjugate_inplace_double(std::vector<double> &A, std::vector<double> const& B,int n);
+int matrix_conjugate_inplace_double(std::vector<double> &A, std::vector<double> const& B,int n, CBLAS_TRANSPOSE trans);
+
 void matrix_add_block(std::vector<std::complex<double> > &A, std::vector<double> B, std::complex<double> scaling, int Adim, int Bdim, int AstartX, int AstartY, int BstartX, int BstartY, int block_width, int block_height);
 #endif
