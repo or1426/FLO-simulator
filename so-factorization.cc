@@ -19,13 +19,13 @@ void apply_left(SymplecticHouseholder h, std::vector<double> &m, int qubits){
   std::vector<double> work(2*qubits);
   int n = 2*qubits;
   int inc = 1;
-  double tau = 2;
+
   LAPACK_dlarf("L",
 	       &n, // number of rows
 	       &n, //cols
 	       &h.w[1],
 	       &inc, //incv		
-	       &tau, //tau	
+	       &h.tau, //tau	
 	       &m[0], 
 	       &n,
 	       &work[0]);	
@@ -34,7 +34,7 @@ void apply_left(SymplecticHouseholder h, std::vector<double> &m, int qubits){
 	       &n, //cols
 	       &h.w[0],
 	       &inc, //incv
-	       &tau, //tau
+	       &h.tau, //tau
 	       &m[0], 
 	       &n,
 	       &work[0]);  
@@ -45,13 +45,13 @@ void apply_right(SymplecticHouseholder h, std::vector<double> &m, int qubits){
   std::vector<double> work(2*qubits);
   int n = 2*qubits;
   int inc = 1;
-  double tau = 2;
+
   LAPACK_dlarf("R",
 	       &n, // number of rows
 	       &n, //cols
 	       &h.w[1],
 	       &inc, 
-	       &tau, 
+	       &h.tau, 
 	       &m[0], 
 	       &n,
 	       &work[0]);	
@@ -60,7 +60,7 @@ void apply_right(SymplecticHouseholder h, std::vector<double> &m, int qubits){
 	       &n, //cols
 	       &h.w[0],
 	       &inc, 
-	       &tau, 
+	       &h.tau, 
 	       &m[0], 
 	       &n,
 	       &work[0]);
@@ -136,63 +136,39 @@ std::vector<double> symplectic_orthogonal_factorize(int qubits, std::vector<doub
   std::vector<std::variant<SymplecticGivens, SymplecticHouseholder> > right_ops;
   for(int k = 0; k < qubits-1; k++){
     //eliminate below diagonal of lower left block
-    std::fill(v.begin(), v.end(), 0);
-    for(int i = k; i < qubits; i++){
-      v[i] = A[dense_fortran(2*i+2, 2*k+1, 2*qubits)];
-    }
-    //A = matmul_square_double(CblasNoTrans,CblasNoTrans, symplectic_householder_to_zero_below_k_reshuffled(qubits, v, k), A, 2*qubits);
-    left_ops.push_back(SymplecticHouseholder(qubits, v, k));
+    left_ops.push_back(SymplecticHouseholder(qubits, &A[dense_fortran(1, 2*k+1,2*qubits)], k, 1, 1));
     apply_left(left_ops.back(), A, qubits);        
-
-    //eliminate diagonal of lower left block
-    double theta = atan2(A[dense_fortran(2*k+2, 2*k+1,2*qubits)], A[dense_fortran(2*k+1, 2*k+1,2*qubits)]);
-    left_ops.push_back(SymplecticGivens(cos(theta), sin(theta), k));
+    
+    //eliminate diagonal of lower left block    
+    left_ops.push_back(SymplecticGivens(A[dense_fortran(2*k+1, 2*k+1,2*qubits)], A[dense_fortran(2*k+2, 2*k+1,2*qubits)], k));
     apply_left(left_ops.back(), A, qubits);
-    //A = matmul_square_double(CblasNoTrans,CblasNoTrans, symplectic_givens_reshuffled(qubits, theta, k), A, 2*qubits);
-
+            
     //eliminate below diagonal of upper left block
-    std::fill(v.begin(), v.end(), 0);
-    for(int i = k; i < qubits; i++){
-      v[i] = A[dense_fortran(2*i+1, 2*k+1, 2*qubits)];
-    }
-    //A = matmul_square_double(CblasNoTrans,CblasNoTrans, symplectic_householder_to_zero_below_k_reshuffled(qubits, v, k), A, 2*qubits);
-    left_ops.push_back(SymplecticHouseholder(qubits, v, k));
+    left_ops.push_back(SymplecticHouseholder(qubits, &A[dense_fortran(1, 2*k+1,2*qubits)], k, 1,0));
     apply_left(left_ops.back(), A, qubits);
+    
     //eliminate (from the right) right of diagonal of lower left block
     if(k+1 < qubits - 1){
-      std::fill(v.begin(), v.end(), 0);
-      for(int i = k+1; i < qubits; i++){
-        v[i] = A[dense_fortran(2*k+2, 2*i+1, 2*qubits)];
-      }
-      //A = matmul_square_double(CblasNoTrans,CblasNoTrans,  A, symplectic_householder_to_zero_below_k_reshuffled(qubits, v, k+1), 2*qubits);
-      right_ops.push_back(SymplecticHouseholder(qubits, v, k+1));
-      apply_right(right_ops.back(), A, qubits);
+      right_ops.push_back(SymplecticHouseholder(qubits, &A[dense_fortran(2*k+2, 1, 2*qubits)], k+1, 2*qubits, 0));
+      apply_right(right_ops.back(), A, qubits);      
     }
-
+    
     //eliminate the remaining above diagonal of lower left block
-    theta = atan2(A[dense_fortran(2*k+2, 2*(k+1)+1,2*qubits)], A[dense_fortran(2*k+2, 2*(k+1)+2,2*qubits)]);
-    //A = matmul_square_double(CblasNoTrans,CblasNoTrans, A, symplectic_givens_reshuffled(qubits, theta, k+1), 2*qubits);
-    right_ops.push_back(SymplecticGivens(cos(theta), sin(theta), k+1));
+    right_ops.push_back(SymplecticGivens(A[dense_fortran(2*k+2, 2*(k+1)+2,2*qubits)], A[dense_fortran(2*k+2, 2*(k+1)+1,2*qubits)], k+1));
     apply_right(right_ops.back(), A, qubits);
+    
     //eliminate (from right) right of diagonal in lower right block
     if(k+1 < qubits - 1){
-      std::fill(v.begin(), v.end(), 0);
-      for(int i = k+1; i < qubits; i++){
-        v[i] = A[dense_fortran(2*k+2, 2*i+1+1, 2*qubits)];
-      }
-
-      //A = matmul_square_double(CblasNoTrans,CblasNoTrans,  A, symplectic_householder_to_zero_below_k_reshuffled(qubits, v, k+1), 2*qubits);
-      right_ops.push_back(SymplecticHouseholder(qubits, v, k+1));
+      right_ops.push_back(SymplecticHouseholder(qubits, &A[dense_fortran(2*k+2, 1, 2*qubits)], k+1, 2*qubits, 1));      
       apply_right(right_ops.back(), A, qubits);
 
     }
+
   }
   //finally delete the lower right element of the lower left block
-  double theta = atan2(A[dense_fortran(2*qubits-1+1, 2*qubits - 2 + 1,2*qubits)], A[dense_fortran(2*qubits - 2 + 1, 2*qubits - 2 + 1,2*qubits)]);
-  //A = matmul_square_double(CblasNoTrans,CblasNoTrans,  symplectic_givens_reshuffled(qubits, theta, qubits-1), A,  2*qubits);
-  left_ops.push_back(SymplecticGivens(cos(theta), sin(theta), qubits - 1));
+  left_ops.push_back(SymplecticGivens(A[dense_fortran(2*qubits - 2 + 1, 2*qubits - 2 + 1,2*qubits)],
+				      A[dense_fortran(2*qubits-1+1, 2*qubits - 2 + 1,2*qubits)], qubits - 1));
   apply_left(left_ops.back(), A, qubits);
-  
   
   std::vector<double> upper_left_diag(qubits, 0.); 
   

@@ -12,32 +12,32 @@
 
 std::vector<double> symplectic_orthogonal_factorize(int qubits, std::vector<double> A, std::vector<double> &Q1, std::vector<double> &Q2);
 
-struct SymplecticGivens {
+struct SymplecticGivens{
   double c;
   double s;
   int k;
-  SymplecticGivens(double c, double s, int k){
-    this->c = c;
-    this->s = s;
+  SymplecticGivens(double a, double b, int k){
+    cblas_drotg(&a,&b,&this->c, &this->s);
+    //this->c = c;
+    //this->s = s;
     this->k = k;
   }
 };
 
-struct SymplecticHouseholder {
+struct SymplecticHouseholder{
   std::vector<double> w;
-  SymplecticHouseholder(int qubits, std::vector<double> v, int k){
-    double norm2 = 0;
-    for(int i = 0; i < qubits; i++){
-      norm2 += v[i]*v[i];
-    }
-    double new_norm = sqrt(norm2 - v[k]*v[k] +(v[k] + sqrt(norm2))*(v[k] + sqrt(norm2)));
-    //we pad the w vector with an extra 0 at the front
-    //this makes it easy to line up to use lapack to apply the right Householder operations
+  double tau;
+  SymplecticHouseholder(int qubits, double * v_ptr, int k, int v_inc, int part){
+    //we construct a symplectic householder which zeros
+    //everything below element k of either the even or odd part of v
     this->w = std::vector(2*qubits+1, 0.);
-    for(int i = 0; i < qubits; i++){
-      w[2*i+1] = v[i]/new_norm;
-    }    
-    w[2*k+1] += sqrt(norm2)/new_norm;
+    int effective_length = qubits - k;
+    
+    cblas_dcopy(effective_length, v_ptr + (2*k+part)*v_inc, 2*v_inc, &w[1+2*k], 2);
+
+    const int TWO = 2;
+    LAPACK_dlarfg(&effective_length, &this->w[1+2*k], &this->w[3+2*k], &TWO, &(this->tau));
+    this->w[1+2*k] = 1;
   }
 };
 
