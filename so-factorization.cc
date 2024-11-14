@@ -10,7 +10,7 @@ void apply_left(SymplecticGivens g, std::vector<double> &m, int qubits){
 void apply_right(SymplecticGivens g, std::vector<double> &m, int qubits){
   int n = 2*qubits;
   int inc = 1;
-  double minus_s = -g.s;
+
   cblas_drot(n, &m[dense_fortran(1, 2*g.k+1, n)], inc, &m[dense_fortran(1, 2*g.k+2, n)], inc, g.c, -g.s);
 }
 
