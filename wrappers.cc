@@ -1,4 +1,22 @@
 #include "wrappers.h"
+void print_fortran(std::vector<double> A, int n){
+  for(int i = 1; i <= n; i++){
+    for(int j = 1; j <= n; j++){
+      std::cout << A[dense_fortran(i,j,n)] << " ";
+    }
+    std::cout << std::endl;
+  }
+}
+void print_fortran(std::vector<std::complex<double> > A, int n){
+  for(int i = 1; i <= n; i++){
+    for(int j = 1; j <= n; j++){
+      std::cout << A[dense_fortran(i,j,n)].real() <<"," <<A[dense_fortran(i,j,n)].imag() << " ";
+    }
+    std::cout << std::endl;
+  }
+}
+
+
 
 int matmul_square_complex(std::vector<std::complex<double> > const& A, std::vector<std::complex<double> > const& B, std::vector<std::complex<double> > &C, int n){
   std::complex<double> ONE = 1;

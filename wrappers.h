@@ -7,6 +7,7 @@
 #include <cmath>
 #include "pfapack.h" //we only need this for dense_fortran I think
 
+/*
 template<typename T>
 void print_fortran(std::vector<T> A, int n){
   for(int i = 1; i <= n; i++){
@@ -16,7 +17,9 @@ void print_fortran(std::vector<T> A, int n){
     std::cout << std::endl;
   }
 }
-
+*/
+void print_fortran(std::vector<double> A, int n);
+void print_fortran(std::vector<std::complex<double> > A, int n);
 
 
 int matmul_square_complex(std::vector<std::complex<double> > const& A, std::vector<std::complex<double> > const& B, std::vector<std::complex<double> > &C, int n);
