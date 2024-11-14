@@ -179,9 +179,85 @@ double aka_to_kak_test(json j){
   std::vector<double> R = j["R"];
   double phaseR = j["phaseReal"];
   double phaseI = j["phaseImag"];
-  int v =  aka_to_kak(qubits, lambda1, R, std::complex<double>(phaseR, phaseI), lambda2);
 
-  return 0;
+  std::tuple<std::complex<double>, std::vector<double>, std::complex<double>, std::vector<double>, std::complex<double>, std::vector<double> > tuple = aka_to_kak(qubits, lambda1, R, std::complex<double>(phaseR, phaseI), lambda2);
+
+  std::complex<double> val = std::get<0>(tuple);
+  std::complex<double> pythonVal(j["pythonValR"], j["pythonValI"]);
+
+  double error = std::min(abs(val - pythonVal), abs(val + pythonVal));
+  std::vector<double> lambda = std::get<5>(tuple);
+  std::vector<double> A_R_matrix(2*qubits*2*qubits, 0.);
+  std::vector<double> A1_R_matrix(2*qubits*2*qubits, 0.);
+  std::vector<double> A2_R_matrix(2*qubits*2*qubits, 0.);
+  
+  for(int i = 0; i < qubits/2; i++){
+    //A
+    A_R_matrix[dense_fortran(4*i+1, 4*i+1, 2*qubits)] = cos(-lambda[i]);
+    A_R_matrix[dense_fortran(4*i+2, 4*i+2, 2*qubits)] = cos(-lambda[i]);
+    A_R_matrix[dense_fortran(4*i+3, 4*i+3, 2*qubits)] = cos(-lambda[i]);
+    A_R_matrix[dense_fortran(4*i+4, 4*i+4, 2*qubits)] = cos(-lambda[i]);
+
+    A_R_matrix[dense_fortran(4*i+1, 4*i+3, 2*qubits)] = sin(-lambda[i]);
+    A_R_matrix[dense_fortran(4*i+2, 4*i+4, 2*qubits)] = -sin(-lambda[i]);
+    A_R_matrix[dense_fortran(4*i+3, 4*i+1, 2*qubits)] = -sin(-lambda[i]);
+    A_R_matrix[dense_fortran(4*i+4, 4*i+2, 2*qubits)] = sin(-lambda[i]);
+    //A1
+    A1_R_matrix[dense_fortran(4*i+1, 4*i+1, 2*qubits)] = cos(-lambda1[i]);
+    A1_R_matrix[dense_fortran(4*i+2, 4*i+2, 2*qubits)] = cos(-lambda1[i]);
+    A1_R_matrix[dense_fortran(4*i+3, 4*i+3, 2*qubits)] = cos(-lambda1[i]);
+    A1_R_matrix[dense_fortran(4*i+4, 4*i+4, 2*qubits)] = cos(-lambda1[i]);
+
+    A1_R_matrix[dense_fortran(4*i+1, 4*i+3, 2*qubits)] = sin(-lambda1[i]);
+    A1_R_matrix[dense_fortran(4*i+2, 4*i+4, 2*qubits)] = -sin(-lambda1[i]);
+    A1_R_matrix[dense_fortran(4*i+3, 4*i+1, 2*qubits)] = -sin(-lambda1[i]);
+    A1_R_matrix[dense_fortran(4*i+4, 4*i+2, 2*qubits)] = sin(-lambda1[i]);
+    //A2
+    A2_R_matrix[dense_fortran(4*i+1, 4*i+1, 2*qubits)] = cos(-lambda2[i]);
+    A2_R_matrix[dense_fortran(4*i+2, 4*i+2, 2*qubits)] = cos(-lambda2[i]);
+    A2_R_matrix[dense_fortran(4*i+3, 4*i+3, 2*qubits)] = cos(-lambda2[i]);
+    A2_R_matrix[dense_fortran(4*i+4, 4*i+4, 2*qubits)] = cos(-lambda2[i]);
+
+    A2_R_matrix[dense_fortran(4*i+1, 4*i+3, 2*qubits)] = sin(-lambda2[i]);
+    A2_R_matrix[dense_fortran(4*i+2, 4*i+4, 2*qubits)] = -sin(-lambda2[i]);
+    A2_R_matrix[dense_fortran(4*i+3, 4*i+1, 2*qubits)] = -sin(-lambda2[i]);
+    A2_R_matrix[dense_fortran(4*i+4, 4*i+2, 2*qubits)] = sin(-lambda2[i]);    
+  }
+  //should be R^T R = I
+  std::vector<double> R1 = matmul_square_double(A2_R_matrix, matmul_square_double(R, A1_R_matrix, 2*qubits), 2*qubits);
+  std::vector<double> R2 = matmul_square_double(std::get<1>(tuple), matmul_square_double(A_R_matrix, std::get<3>(tuple), 2*qubits), 2*qubits);
+  
+  std::vector<double> identity = matmul_square_double(CblasTrans, CblasNoTrans, R1, R2, 2*qubits);
+
+  for(int i = 0; i < 2*qubits; i++){
+    for(int j = 0; j < 2*qubits; j++){
+      if(i == j){
+	error = std::max(error, abs(identity[dense_fortran(i+1, j+1, 2*qubits)] - 1));
+      }else{
+	error = std::max(error, abs(identity[dense_fortran(i+1, j+1, 2*qubits)]));
+      }
+    }
+  }
+
+  
+  return error;  
+}
+
+double MKA_test(json j){
+  int qubits = j["qubits"];
+  std::vector<double> M = j["M"];
+  std::vector<double> R = j["R"];
+  std::complex<double> Rphase(j["RphaseR"], j["RphaseI"]);
+  std::vector<double> A = j["A"];
+
+  std::complex<double> pythonProd(j["prodR"], j["prodI"]);
+  
+  DecomposedPassive p = decompose_passive_flo_unitary(R, qubits, Rphase);
+  
+  std::complex<double> prod = inner_prod_M_P_A(qubits, M, p, A);
+  //std::cout << prod << ", " << pythonProd << std::endl;
+  return abs(prod - pythonProd);
+  
 }
 
 int main(int argc, char * argv[])
@@ -194,11 +270,13 @@ int main(int argc, char * argv[])
   double max_error_cb_ip = -1;
   double max_error_so = -1;
   double max_error_aka_kak = -1;
+  double max_error_MKA = -1;
   int decompose_passive_count = 0;
   int flo_ip_count = 0;
   int cb_ip_count = 0;
   int so_count = 0;
   int aka_kak_count = 0;
+  int mka_prod_count = 0;
   while(true){
     //this try/except thing seems suboptimal/ugly
     //I think this json library really doesn't expect to be dealing with streams of json objects
@@ -228,16 +306,20 @@ int main(int argc, char * argv[])
 	double val = symplectic_orthogonal_factorize_test(j);
 	if(val > max_error_so){
 	  max_error_so = val;
-	}
-	 
+	}	 
 	}else if(j["type"] == std::string("aka_kak")){
 	aka_kak_count += 1;
 	double val = aka_to_kak_test(j);
 	if(val > max_error_aka_kak){
 	  max_error_aka_kak = val;
+	}
+      }else if(j["type"] == std::string("mka_prod")){
+	mka_prod_count += 1;
+	double val = MKA_test(j);
+	if(val > max_error_MKA){
+	  max_error_MKA = val;
 	}	
-      }
-      
+      }      
       count += 1;
     } catch(nlohmann::json::parse_error e) {
       break;
@@ -249,6 +331,8 @@ int main(int argc, char * argv[])
   std::cout << std::setw(20) << "cb inner product " << std::setw(20) << max_error_cb_ip << cb_ip_count << std::endl;
   std::cout << std::setw(20) << "flo inner product " << std::setw(20) << max_error_flo_ip << flo_ip_count << std::endl;
   std::cout << std::setw(20) << "so decomposition " << std::setw(20) << max_error_so << so_count << std::endl;
+  std::cout << std::setw(20) << "aka to kak form " << std::setw(20) << max_error_aka_kak << aka_kak_count << std::endl;
+  std::cout << std::setw(20) << "MKA " << std::setw(20) << max_error_MKA << mka_prod_count << std::endl;
   
   /*
   std::string helpmessage("args:\n\t-d for testing the decomposition of passive FLO unitaries\n\t-c for computational basis inner products\n\t-i for general inner products");

@@ -222,9 +222,13 @@ DecomposedPassive decompose_passive_flo_unitary(std::vector<double> R,int qubits
 
   //we might be wrong by a factor of minus 1 in new phase
   //if we are we have to add 2pi to lambda_0
-  if(abs(phase - new_phase) > 1e-10){
-    lambdas[0] += 2*M_PI;
-    new_phase = -new_phase;
+  //if we were passed a complex number of small absolute value we don't do this
+  //because in that case the caller didn't know about the original phase
+  if(abs(phase) > 0.5){
+    if(abs(phase - new_phase) > 1e-10){
+      lambdas[0] += 2*M_PI;
+      new_phase = -new_phase;
+    }
   }
   DecomposedPassive p;
   p.phase = new_phase;
@@ -291,6 +295,7 @@ std::complex<double> inner_prod_internal(int qubits, std::vector<double> A1, Dec
     
     G[dense_fortran(2*qubits+4*i+2, 2*qubits+4*i+1, G_dim)] = (1.i)*std::cos(angle);
     G[dense_fortran(2*qubits+4*i+2, 2*qubits+4*i+4, G_dim)] = -std::sin(angle);
+
     
     G[dense_fortran(2*qubits+4*i+3, 2*qubits+4*i+1, G_dim)] = -std::sin(angle);
     G[dense_fortran(2*qubits+4*i+3, 2*qubits+4*i+4, G_dim)] = (-1.i)*std::cos(angle);
@@ -321,6 +326,122 @@ std::complex<double> inner_prod_internal(int qubits, std::vector<double> A1, Dec
   info = skpfa_z(G_dim, &G[0], &pfaffian, "U", "P");  
   
   return std::pow(-1.i, qubits)*pfaffian*(1-2*((qubits/2)%2));
+}
+
+std::vector<double> transpose(std::vector<double> R, int n){
+  std::vector<double> V(n*n,0.);
+  for(int i = 0; i < n; i++){
+    for(int j = 0; j < n; j++){
+      V[dense_fortran(i+1, j+1, n)] = R[dense_fortran(j+1, i+1, n)];
+    }
+  }
+  return V;
+}
+
+std::complex<double> inner_prod_M_P_A(int qubits, std::vector<double> M, DecomposedPassive &p, std::vector<double> A){
+
+  //compute the inner product tr(|M><M| P A)
+  //where |M> is a FLO state with covariance matrix M
+  //P is passive (type K) and A is anti-passive (type A)
+  //let C1 S1 and C2 S2 be the matrices of cosines and sines arising from P and A respectively
+  //a fun fact is that the R matrix from p has determinant 1 (never -1) this can be proved from
+  //det([[c,s],[-s,c]]) = det(c+is)det(c-is) & det(M) = det(M^T) & c+is is unitary
+ 
+  //we are attempting to compute the pfaffian of the 3x3 block matrix
+
+  //[-iM	R C1 	   -C2      ]
+  //[-C1R^T     S1         C1 R^T C2]
+  //[C2         -C2RC1     S2       ]
+
+  //after applying block diagonalization, using that M^{-1} = -M = M^T  we obtain
+  //[S1         C1 R^T C2]   [C1 R^T]                        [S1         C1 R^T C2]   [C1 R^T iM R C1     -C1 R^T iM C2]
+  //[-C2RC1     S2       ] + [-C2   ]   (-iM) [R C1, -C2]  = [-C2RC1     S2       ] - [-C2 iM R C1        C2 iM C2     ]
+
+  //C1 is a block diagonal of blocks of the form
+  //[cos(p.l[i]/2.)   0]
+  //[0.               1]
+  //C2 is a block diagonal of blocks of the form
+  //[cos(A[i]/2.)      0     0   0]
+  //[0         cos(A[i]/2.)  0   0]
+  //[0.             0        1   0]
+  //[0              0        0   1]
+  
+  //A surprising that happens is that we obtain two factors of Pf(-iM) here
+  //one from performing a Grassman integral to simplify parity*|M><M|
+  //and one from applying the block diagonalization formula
+  //this means that we don't need to compute Pf(-iM) properly, we just use Pf(-iM) = Pf(-i V M0 V^T) = Pf(-i M0) det(V)
+  //where M0 is the covariance matrix of the vacuum state
+  //since V is orthogonal det(V)^2 = 1 so all we need is Pf(-iM0)^2 = (-i)^{2n) = (-1)^n
+  
+  //lets compute M R first
+  std::vector<double> RT = transpose(p.R, 2*qubits);
+  std::vector<double> MR = matmul_square_double(M, RT, 2*qubits);
+
+  std::vector<std::complex<double> > G((4*qubits)*(4*qubits), 0.);
+
+  //add iMR C1 to lower left of G
+  //we abuse that a complex double number is just pair of real doubles, real part then imaginary part
+  for(int i = 0; i < qubits; i++){
+    //add column by column
+    cblas_daxpy(2*qubits, cos(p.l[i]/2.), &MR[dense_fortran(1, 2*i+1, 2*qubits)], 1, ((double*)&G[dense_fortran(2*qubits+1, 2*i+1, 4*qubits)])+1, 2);
+    cblas_daxpy(2*qubits, 1., &MR[dense_fortran(1, 2*i+2, 2*qubits)], 1, ((double*)&G[dense_fortran(2*qubits+1, 2*i+2, 4*qubits)])+1, 2);
+  }
+
+  //add -R C1 to lower left of G
+  for(int i = 0; i < qubits; i++){
+    cblas_daxpy(2*qubits, -cos(p.l[i]/2.), &RT[dense_fortran(1, 2*i+1, 2*qubits)], 1, (double*)&G[dense_fortran(2*qubits+1, 2*i+1, 4*qubits)], 2);
+    cblas_daxpy(2*qubits, -1, &RT[dense_fortran(1, 2*i+2, 2*qubits)], 1, (double*)&G[dense_fortran(2*qubits+1, 2*i+2, 4*qubits)], 2);
+  }
+  
+  //add -iM C2 to the lower right of G
+  for(int i = 0; i < qubits/2; i++){
+    cblas_daxpy(2*qubits, -cos(-A[i]/2.), &M[dense_fortran(1, 4*i+1, 2*qubits)], 1, ((double*)&G[dense_fortran(2*qubits+1, 2*qubits+4*i+1, 4*qubits)])+1, 2);
+    cblas_daxpy(2*qubits, -cos(-A[i]/2.), &M[dense_fortran(1, 4*i+2, 2*qubits)], 1, ((double*)&G[dense_fortran(2*qubits+1, 2*qubits+4*i+2, 4*qubits)])+1, 2);
+
+    cblas_daxpy(2*qubits, -1, &M[dense_fortran(1, 4*i+3, 2*qubits)], 1, ((double*)&G[dense_fortran(2*qubits+1, 2*qubits+4*i+3, 4*qubits)])+1, 2);
+    cblas_daxpy(2*qubits, -1, &M[dense_fortran(1, 4*i+4, 2*qubits)], 1, ((double*)&G[dense_fortran(2*qubits+1, 2*qubits+4*i+4, 4*qubits)])+1, 2);
+  }
+  //now we left-multiply the whole lower part of G by C2
+  for(int i = 0; i < qubits/2; i++){
+    //we do two rows at once
+    std::complex<double> c(cos(A[i]/2.), 0.);
+    cblas_zscal(4*qubits, &c, &G[dense_fortran(2*qubits+4*i+1, 1, 4*qubits)], 4*qubits);
+    cblas_zscal(4*qubits, &c, &G[dense_fortran(2*qubits+4*i+2, 1, 4*qubits)], 4*qubits);
+  }
+  
+  //now add S2 to the lower right part of G
+  for(int i = 0; i < qubits/2; i++){
+    G[dense_fortran(2*qubits+4*i+1, 2*qubits+4*i+3, 4*qubits)] += sin(A[i]/2.);
+    G[dense_fortran(2*qubits+4*i+2, 2*qubits+4*i+4, 4*qubits)] -= sin(A[i]/2.);
+    G[dense_fortran(2*qubits+4*i+3, 2*qubits+4*i+1, 4*qubits)] -= sin(A[i]/2.);
+    G[dense_fortran(2*qubits+4*i+4, 2*qubits+4*i+2, 4*qubits)] += sin(A[i]/2.);
+  }
+  
+  //now top left of G
+  std::vector<double> RTMR = matmul_square_double(CblasTrans, CblasNoTrans, RT, MR, 2*qubits);
+
+  for(int i = 0; i < qubits; i++){
+    //we left multiply RTMR by c1
+    //multiplies even rows by cos
+    cblas_dscal(2*qubits, cos(p.l[i]/2), &RTMR[dense_fortran(2*i+1, 1, 2*qubits)], 2*qubits); //rows
+    //cblas_dscal(2*qubits, cos(p.l[i]/2), &RTMR[dense_fortran(1, 2*i+1, 2*qubits)], 1); //cols    
+  }
+  //add -C1 RT iM R to top left of G while simultaniously right multiplying by C1
+  for(int i = 0; i < qubits; i++){
+    cblas_daxpy(2*qubits, -cos(p.l[i]/2), &RTMR[dense_fortran(1, 2*i+1, 2*qubits)], 1, ((double*)&G[dense_fortran(1, 2*i+1, 4*qubits)])+1, 2);
+    cblas_daxpy(2*qubits, -1, &RTMR[dense_fortran(1, 2*i+2, 2*qubits)], 1, ((double*)&G[dense_fortran(1, 2*i+2, 4*qubits)])+1, 2);
+  }
+
+  //now add S1 to top right of G
+  for(int i = 0; i < qubits; i++){
+    G[dense_fortran(2*i+1, 2*i+2, 4*qubits)] += sin(p.l[i]/2);
+    G[dense_fortran(2*i+2, 2*i+1, 4*qubits)] -= sin(p.l[i]/2);
+  }
+
+  std::complex<double> pfaffian=0;
+  int info = skpfa_z(4*qubits, &G[0], &pfaffian, "L", "P");
+  return pfaffian*(1-2*(qubits%2));
+
 }
 
 //we compute the inner product of our state KA|0>
@@ -415,7 +536,7 @@ std::complex<double> aka_inner_product(int qubits, std::vector<double> V, std::v
   }
   std::cout << "passive phase = " << passive_phase << std::endl;
 
-  matrix_conjugate_inplace_double(T, p.R, 2*qubits, CblasTrans);
+  matrix_conjugate_inplace_double(T, p.R, 2*qubits, CblasNoTrans);
 
   for(int i = 0; i < 2*qubits; i++){
     for(int j = 0; j < 2*qubits; j++){
@@ -426,8 +547,8 @@ std::complex<double> aka_inner_product(int qubits, std::vector<double> V, std::v
   //now we need the top part left part which is the generating function of P A_1^\dagger V |0><0| V^\dagger A_1 
   std::fill(T.begin(), T.end(), 0.);
   for(int i = 0; i < qubits; i++){
-    T[dense_fortran(2*i+1, 2*i+2, 2*qubits)] = 1;
-    T[dense_fortran(2*i+2, 2*i+1, 2*qubits)] = -1;
+    T[dense_fortran(2*i+1, 2*i+2, 2*qubits)] = -1;
+    T[dense_fortran(2*i+2, 2*i+1, 2*qubits)] = 1;
   }
   matrix_conjugate_inplace_double(T, V, 2*qubits, CblasNoTrans);
   
@@ -447,9 +568,36 @@ std::complex<double> aka_inner_product(int qubits, std::vector<double> V, std::v
   
   for(int i = 0; i < 2*qubits; i++){
     for(int j = 0; j < 2*qubits; j++){
-      G[dense_fortran(i+1, j+1, G_dim)] = T[dense_fortran(i+1, j+1, 2*qubits)]*std::complex<double>(0.,1.);
+      G[dense_fortran(i+1, j+1, G_dim)] = T[dense_fortran(i+1, j+1, 2*qubits)]*std::complex<double>(0.,-1.);
     }
   }
+
+  //schur decompose V because we care about its determinant (it might be minus 1)
+  //because our answer will be multiplied by Pf(-i\tilde{M}) = det(V) Pf(-iM) = det(V) (-i)^n
+  std::vector<double> workopt(1);
+  int sdim = 0;
+  std::vector<double> eigenvalues_r(2*qubits);
+  std::vector<double> eigenvalues_i(2*qubits);
+  std::vector<int> bwork(2*qubits);
+  int32_t info_schur;
+  int MINUS_1 = -1;
+  int n = 2*qubits;
+  LAPACK_dgees("N", "N", NULL, &n, &V[0], &n, &sdim,
+               &eigenvalues_r[0], &eigenvalues_i[0], NULL,
+               &n, &workopt[0], &MINUS_1,  NULL, &info_schur);
+
+
+  int lwork = (int)workopt[0];
+  std::vector<double> work(lwork);
+  LAPACK_dgees("N", "N", NULL, &n, &V[0], &n, &sdim,
+               &eigenvalues_r[0], &eigenvalues_i[0], NULL,
+               &n, &work[0], &lwork, NULL, &info_schur);
+
+  std::complex<double> det = 1.;
+  for(int i = 0; i < 2*qubits; i++){
+    det *= std::complex<double>(eigenvalues_r[i], eigenvalues_i[i]);
+  }
+  //std::cout << "V determinant = " << det << std::endl;
   
   //std::cout.width(2);
   //std::cout << std::setprecision(1) << std::showpos << std::fixed;
@@ -462,12 +610,79 @@ std::complex<double> aka_inner_product(int qubits, std::vector<double> V, std::v
   int info;
   info = skpfa_z(G_dim, &G[0], &pfaffian, "U", "P");
 
-  return std::pow(-1.i, qubits)*pfaffian*prefactor;
+  return std::pow(-1.i, qubits)*pfaffian*prefactor*det;
+}
+
+std::tuple<std::vector<double>,std::vector<double>,std::vector<double> > KAK_decompose(std::vector<double> R, int qubits){
+  std::vector<double> Q1(2*qubits*2*qubits, 0.);
+  std::vector<double> Q2(2*qubits*2*qubits, 0.);
+  std::vector<double> A = symplectic_orthogonal_factorize(qubits, R, Q1, Q2);
+  //std::cout << "A = "<< std::endl;
+  //print_fortran(A, 2*qubits);
+  //std::cout << std::endl;
+  //A has the form
+  //[1  0  0  0]
+  //[0  c  0  s]
+  //[0  0  1  0]
+  //[0 -s  0  1]
+  //but we want the form
+  //[ c  0  s  0]
+  //[ 0  c  0 -s]
+  //[-s  0  c  0]
+  //[ 0  s  0  c]
+
+  Q1 = transpose(Q1, 2*qubits);
+  Q2 = transpose(Q2, 2*qubits);
+
+  std::vector<double> lambda(qubits/2, 0.);
+
+  for(int i = 0; i < qubits/2; i++){
+    double theta = atan2(A[dense_fortran(4*i+2, 4*i+4, 2*qubits)], A[dense_fortran(4*i+2, 4*i+2, 2*qubits)]);
+    lambda[i] = -theta/2;
+    //std::cout << i << " " << theta << " " << cos(theta/2) << " " << sin(theta/2) << std::endl;
+    //now we right-multiply the symplectic-orthogonal transformation 
+    //[ c  0  s  0]
+    //[ 0  c  0  s]
+    //[-s  0  c  0]
+    //[ 0 -s  0  c]
+    //onto Q1, where c and s are cos and sin of theta/2
+    cblas_drot(2*qubits, &Q1[dense_fortran(1, 4*i+1, 2*qubits)], 1, &Q1[dense_fortran(1, 4*i+3, 2*qubits)], 1, cos(theta/2), -sin(theta/2));
+    cblas_drot(2*qubits, &Q1[dense_fortran(1, 4*i+2, 2*qubits)], 1, &Q1[dense_fortran(1, 4*i+4, 2*qubits)], 1, cos(theta/2), -sin(theta/2));    
+  }
+
+  return std::tuple<std::vector<double>, std::vector<double>, std::vector<double> >(Q1, lambda, Q2);
 }
 
 
+void left_apply_antipassive(int qubits, std::vector<double> &M, std::vector<double> angle){
+  int n = 2*qubits;
+  for(int i = 0; i < qubits/2; i++){
+    cblas_drot(n, &M[dense_fortran(4*i+1, 1, n)], n, &M[dense_fortran(4*i+3, 1, n)], n, cos(angle[i]), sin(-angle[i]));
+    cblas_drot(n, &M[dense_fortran(4*i+2, 1, n)], n, &M[dense_fortran(4*i+4, 1, n)], n, cos(angle[i]), sin(angle[i]));
+  }
+}
 
-int aka_to_kak(int qubits, std::vector<double> lambda1, std::vector<double> R, std::complex<double> phase, std::vector<double> lambda2){
+void right_apply_antipassive(int qubits, std::vector<double> &M, std::vector<double> angle){
+  int n = 2*qubits;
+  for(int i = 0; i < qubits/2; i++){
+    cblas_drot(n, &M[dense_fortran(1, 4*i+1, n)], 1, &M[dense_fortran(1, 4*i+3, n)], 1, cos(angle[i]), sin(angle[i]));
+    cblas_drot(n, &M[dense_fortran(1, 4*i+2, n)], 1, &M[dense_fortran(1, 4*i+4, n)], 1, cos(angle[i]), sin(-angle[i]));
+  }  
+}
+
+void conjugate_by_antipassive(int qubits, std::vector<double> &M, std::vector<double> angle){
+  int n = 2*qubits;
+  for(int i = 0; i < qubits/2; i++){
+    cblas_drot(n, &M[dense_fortran(4*i+1, 1, n)], n, &M[dense_fortran(4*i+3, 1, n)], n, cos(angle[i]), sin(-angle[i]));
+    cblas_drot(n, &M[dense_fortran(4*i+2, 1, n)], n, &M[dense_fortran(4*i+4, 1, n)], n, cos(angle[i]), sin(angle[i]));
+    
+    cblas_drot(n, &M[dense_fortran(1, 4*i+1, n)], 1, &M[dense_fortran(1, 4*i+3, n)], 1, cos(angle[i]), sin(-angle[i]));
+    cblas_drot(n, &M[dense_fortran(1, 4*i+2, n)], 1, &M[dense_fortran(1, 4*i+4, n)], 1, cos(angle[i]), sin(angle[i]));
+  }  
+}
+
+
+std::tuple<std::complex<double>, std::vector<double>, std::complex<double>, std::vector<double>, std::complex<double>, std::vector<double> > aka_to_kak(int qubits, std::vector<double> lambda1, std::vector<double> R, std::complex<double> phase, std::vector<double> lambda2){
   //lambda1 and lambda2 represent antipassive flo unitaries
   //(R, phase) represents a passive flo unitary
   //we seek an alpha K1 A K2 such that
@@ -478,42 +693,15 @@ int aka_to_kak(int qubits, std::vector<double> lambda1, std::vector<double> R, s
   //then we KAK decompose U using the symplectic orthogonal block decomposition
   //then we compute <0| V^\dagger K1 A K2 V |0> and <0| V^\dagger L1 K L2 V |0>
   //and compare them so we get the phase correct
-
-  std::vector<double> L1(4*qubits*qubits, 0.);
-  std::vector<double> L2(4*qubits*qubits, 0.);
-  //turn l1 and l2 into explicit orthogonal matrices
-  //according to R = exp(-Lambda\otimes i\sigma_y \otimes \sigma_z)
-  //for efficiency one could avoid this (and explicit matrix multiplications) since they are block diagonal 
-  for(int i = 0; i < qubits/2; i++){
-    L1[dense_fortran(4*i+1, 4*i+1, 2*qubits)] = cos(-lambda1[i]);
-    L1[dense_fortran(4*i+2, 4*i+2, 2*qubits)] = cos(-lambda1[i]);
-    L1[dense_fortran(4*i+3, 4*i+3, 2*qubits)] = cos(-lambda1[i]);
-    L1[dense_fortran(4*i+4, 4*i+4, 2*qubits)] = cos(-lambda1[i]);
-
-    L1[dense_fortran(4*i+1, 4*i+3, 2*qubits)] = sin(-lambda1[i]);
-    L1[dense_fortran(4*i+2, 4*i+4, 2*qubits)] =-sin(-lambda1[i]);
-    L1[dense_fortran(4*i+3, 4*i+1, 2*qubits)] =-sin(-lambda1[i]);
-    L1[dense_fortran(4*i+4, 4*i+2, 2*qubits)] = sin(-lambda1[i]);
-  }
-  for(int i = 0; i < qubits/2; i++){
-    L2[dense_fortran(4*i+1, 4*i+1, 2*qubits)] = cos(-lambda2[i]);
-    L2[dense_fortran(4*i+2, 4*i+2, 2*qubits)] = cos(-lambda2[i]);
-    L2[dense_fortran(4*i+3, 4*i+3, 2*qubits)] = cos(-lambda2[i]);
-    L2[dense_fortran(4*i+4, 4*i+4, 2*qubits)] = cos(-lambda2[i]);
-
-    L2[dense_fortran(4*i+1, 4*i+3, 2*qubits)] = sin(-lambda2[i]);
-    L2[dense_fortran(4*i+2, 4*i+4, 2*qubits)] =-sin(-lambda2[i]);
-    L2[dense_fortran(4*i+3, 4*i+1, 2*qubits)] =-sin(-lambda2[i]);
-    L2[dense_fortran(4*i+4, 4*i+2, 2*qubits)] = sin(-lambda2[i]);
-  }
-
-  std::vector<double> U = matmul_square_double(L2, matmul_square_double(R, L1, 2*qubits), 2*qubits);
-  std::cout << "U = " << std::endl;
-  print_fortran(U, 2*qubits);
+  
+  std::vector<double> U = R;
+  left_apply_antipassive(qubits, U, lambda2);
+  right_apply_antipassive(qubits, U, lambda1);
+  std::vector<double> Ucpy = U; //we need a copy of U for later and dgees will overwrite it
+  
   //now we real Schur decompose U
   //this will 2x2 block diagonalise it because it is orthogonal
   //we obtain V from this
-
   std::vector<double> workopt(1);
   int sdim = 0;
   std::vector<double> schurvectors(4*qubits*qubits);
@@ -533,19 +721,6 @@ int aka_to_kak(int qubits, std::vector<double> lambda1, std::vector<double> R, s
   LAPACK_dgees("V", "N", NULL, &n, &U[0], &n, &sdim,
                &eigenvalues_r[0], &eigenvalues_i[0], &schurvectors[0],
                &n, &work[0], &lwork, NULL, &info);
-
-  /*
-  for(auto it = U.begin(); it != U.end(); it++){
-    if(abs(*it) < 1e-14){
-      *it = 0;
-    }
-    if(abs(*it-1) < 1e-14){
-      *it = 1;
-    }
-  }
-  */
-
-  
   
   for(int i = 0; i < qubits; i++){
     if(U[dense_fortran(2*i+1, 2*i+2, 2*qubits)] < 0){
@@ -557,34 +732,85 @@ int aka_to_kak(int qubits, std::vector<double> lambda1, std::vector<double> R, s
       cblas_dswap(n, &schurvectors[dense_fortran(1, 2*i+1, 2*qubits)], 1,  &schurvectors[dense_fortran(1, 2*i+2, 2*qubits)], 1);      
     }    
   }
-  std::cout << std::endl << std::left << std::setprecision(3) << std::scientific<< std::showpos;
-  print_fortran(U, 2*qubits);
-  std::cout << "U' = " << std::endl;
-  print_fortran(matmul_square_double(schurvectors, matmul_square_double(CblasNoTrans, CblasTrans, U, schurvectors, 2*qubits), 2*qubits), 2*qubits);
 
   // U_{old} = V U_{new} V^T
-  std::vector<double> mu(qubits);
-  std::cout << std::endl;
+  //calculate <0| V^T U_{old} V |0>  = <0| U_{new} |0>
   double sum = 0;
   for(int i = 0; i < qubits; i++){
-    mu[i] = atan2(U[dense_fortran(2*i+1, 2*i+2, 2*qubits)], U[dense_fortran(2*i+1, 2*i+1, 2*qubits)]);
-    sum += mu[i];
-    std::cout << mu[i] << ", ";
+    sum += atan2(U[dense_fortran(2*i+1, 2*i+2, 2*qubits)], U[dense_fortran(2*i+1, 2*i+1, 2*qubits)]);
   }
-  std::cout << std::endl <<"sum = " << sum << std::endl;
-  
-  std::complex<double> phase2 = exp(std::complex<double>(0.,sum/2.));
-  std::cout << "phase2 = " << phase2 << std::endl;
-  
-  
-  //calculate <0| V^T U_{old} V |0>  = <0| U_{new} |0>
+  std::complex<double> phase2 = exp(-std::complex<double>(0.,sum/2.));
 
-
+  //now compute <0| V^T A_1 K A_2 V |0>
+  std::vector<double> Rcpy = R;
   DecomposedPassive p = decompose_passive_flo_unitary(R, qubits, phase);
-  std::cout << "phases: " << phase << ", " << p.phase << std::endl;
-  std::complex<double> aka_phase = aka_inner_product(qubits, schurvectors, lambda1, p, lambda2);
 
-  std::cout << "aka_phase = " <<aka_phase<<std::endl;
-  std::cout << "ratio =  " << phase2/aka_phase << std::endl;
-  return 0;
+  std::vector<double> M(4*qubits*qubits, 0.);
+  for(int i = 0; i < qubits; i++){
+    M[dense_fortran(2*i+1, 2*i+2, 2*qubits)] = 1;
+    M[dense_fortran(2*i+2, 2*i+1, 2*qubits)] = -1;
+  }
+  // M -> (VL)^T M (VL)
+  matrix_conjugate_inplace_double(M, schurvectors, 2*qubits, CblasNoTrans);
+  //matrix_conjugate_inplace_double(M, L, 2*qubits, CblasNoTrans);
+  conjugate_by_antipassive(qubits, M, lambda1);
+
+  std::vector<double> lambda(qubits/2, 0);
+  for(int i = 0; i < qubits/2; i++){
+    lambda[i] = lambda1[i] + lambda2[i];
+  }
+
+  //compute <0| A1 K A2 |0>
+  std::complex<double> M_P_A = inner_prod_M_P_A(qubits, M, p, lambda);
+  
+
+  std::tuple<std::vector<double>,std::vector<double>,std::vector<double> > t = KAK_decompose(Ucpy, qubits);
+
+  
+  //std::vector<double> newA(2*qubits*2*qubits, 0.);
+  std::vector<double> new_a_lambda(qubits/2);
+  for(int i = 0; i < qubits/2; i++){
+    double angle = std::get<1>(t)[i];
+    new_a_lambda[i] = -1*std::get<1>(t)[i];
+  }
+  
+  std::vector<double> K1 = std::get<0>(t);  
+  std::vector<double> K2 = std::get<2>(t);
+
+  //K1 A K2 == U as orthogonal matrices
+  //so K2 A K1 == U as FLO unitaries
+  
+  //now we compute tr[V|0><0|V^\dagger K2 A K1] = tr[K1 V|0><0|(K1 V)^\dagger K1 K2 A]
+  std::fill(M.begin(), M.end(), 0.);
+  for(int i = 0; i < qubits; i++){
+    M[dense_fortran(2*i+1, 2*i+2, 2*qubits)] = 1;
+    M[dense_fortran(2*i+2, 2*i+1, 2*qubits)] = -1;
+  }
+
+  matrix_conjugate_inplace_double(M, schurvectors, 2*qubits, CblasNoTrans);
+  matrix_conjugate_inplace_double(M, K1, 2*qubits, CblasTrans);
+
+  
+  DecomposedPassive k1_decomp = decompose_passive_flo_unitary(K1, qubits, 0.); 
+  
+  DecomposedPassive k2k1_decomp = decompose_passive_flo_unitary(matmul_square_double(CblasNoTrans, CblasNoTrans, K2, K1, 2*qubits), qubits, 0.);
+
+
+
+
+  
+  std::complex<double> M_P_A2 = inner_prod_M_P_A(qubits, M, k2k1_decomp, new_a_lambda);
+
+
+  if(abs(M_P_A - M_P_A2) > abs(M_P_A + M_P_A2)){
+    k1_decomp.phase *= -1;
+    M_P_A2 *= -1;
+  }
+
+  
+  //we return innerproduct, (K1, K1phase), (K2, K2phase), new_a_lambda
+  //enough information to completely reproduce the KAK decompostion of U
+  
+  return std::tuple<std::complex<double>, std::vector<double>, std::complex<double>, std::vector<double>, std::complex<double>, std::vector<double> > (
+    M_P_A2, K1, k1_decomp.phase, K2, k2k1_decomp.phase/k1_decomp.phase, new_a_lambda);
 }

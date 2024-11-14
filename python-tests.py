@@ -22,11 +22,11 @@ def compute_majs(qubits):
         odd = pY
         
         for j in range(i):
-            even = np.kron(even,pZ)
-            odd = np.kron(odd,pZ)
+            even = np.kron(pZ, even,)
+            odd = np.kron(pZ,odd)
         for j in range(i+1, qubits):
-            even = np.kron(pI,even)
-            odd = np.kron(pI,odd)
+            even = np.kron(even, pI)
+            odd = np.kron(odd,pI)
         majs.append(even)
         majs.append(odd)
     return majs
@@ -60,11 +60,10 @@ def make_aka_kak_test(seed=1000, count = 2, qubits = 4):
         
         l1 = list(rng.random(qubits//2, dtype=np.float64))
         l2 = list(rng.random(qubits//2, dtype=np.float64))
-
-        print("angles - ", end='',file=sys.stderr)
-        for a,b in zip(l1,l2):
-            print((a+b)/2, end = ", ",file=sys.stderr)
-        print('',file=sys.stderr)
+        #print(l1, file=sys.stderr)
+        #print(l2, file=sys.stderr)
+        #l1[0] = np.pi
+        
         majs = compute_majs(qubits)
         exponent_alpha = np.zeros_like(majs[0])
         exponent_l1 = np.zeros_like(majs[0])
@@ -77,11 +76,14 @@ def make_aka_kak_test(seed=1000, count = 2, qubits = 4):
         for i in range(2*qubits):            
             for j in range(2*qubits):
                 exponent_alpha += alpha[i][j]*majs[i]@majs[j]/4.
-        print("python passive phase", linalg.expm(exponent_alpha)[0,0], file=sys.stderr)
+        #print(np.allclose(linalg.expm(exponent_l1), -), file=sys.stderr)
+        #print(np.allclose(linalg.expm(exponent_l1), majs[0]@majs[1]@majs[2]@majs[3]), file=sys.stderr)
+        #print("max error:", np.max(np.abs(linalg.expm(exponent_l1) +np.kron(np.kron(np.array([[1,0],[0,-1]]),np.array([[1,0],[0,-1]])), np.eye(4)))), file=sys.stderr)
+        
         mat = linalg.expm(exponent_l1) @ linalg.expm(exponent_alpha) @ linalg.expm(exponent_l2)
-        print("00 inner prod", mat[0][0], file=sys.stderr)
-        print(l1, file=sys.stderr)
-        print(l2, file=sys.stderr)
+        
+        #print("python 00 phase: ", mat[0,0], file=sys.stderr)
+        #print("python 11 phase: ", mat[2**qubits-1,2**qubits-1], file=sys.stderr)
         l1A = np.zeros_like(R)
         l2A = np.zeros_like(R)
 
@@ -99,21 +101,26 @@ def make_aka_kak_test(seed=1000, count = 2, qubits = 4):
 
         U = linalg.expm(-l2A) @ R @ linalg.expm(-l1A)
         np.set_printoptions(linewidth=140, precision=3)
-        
-        print("python U", file=sys.stderr)
-        print(U, file=sys.stderr)
-        print("",file=sys.stderr)
+                
         T, Z = linalg.schur(U, output="real", overwrite_a=False)
-        print(T, file=sys.stderr)
+        
         exponent = np.zeros_like(majs[0])
 
         for i in range(qubits):
-            theta = np.arctan2(abs(T[2*i, 2*i+1]), T[2*i, 2*i])
+            if T[2*i, 2*i+1] < 0:
+                T[2*i, 2*i+1] *= -1
+                T[2*i+1, 2*i] *= -1
+                Z[:,[2*i, 2*i+1]]  = Z[:,[2*i+1,2*i]]
+                
+            theta = np.arctan2(T[2*i+1, 2*i], T[2*i, 2*i])
             exponent += (1/2.)*theta*majs[2*i] @ majs[2*i+1]
-            
-        print("python phase: ", linalg.expm(exponent)[0,0], file=sys.stderr)
+        #print("python schur", file=sys.stderr)
+        #print(Z, file=sys.stderr)
+        #print("python phase: ", linalg.expm(exponent)[0,0], file=sys.stderr)
         
-        obj = {"type": "aka_kak", 
+        obj = {"type": "aka_kak",
+               "pythonValR": linalg.expm(exponent)[0,0].real,
+               "pythonValI": linalg.expm(exponent)[0,0].imag,
                "qubits": qubits,
                "R": list(R.T.reshape(2*qubits*2*qubits)),
                "lambda1": l1,
@@ -290,7 +297,66 @@ def make_two_flo_state_inner_prod_tests(seed=1000, count=2, qubits = 4):
                }
         print(json.dumps(obj),end="")
 
+def make_MKA_test(seed=1000, count=2, qubits = 4):
+    majs = compute_majs(qubits)
 
+    rng = default_rng(seed)
+    import json
+    #print(count)
+    majs = compute_majs(qubits)
+    for _ in range(count):        
+        A = rng.random((qubits,qubits), dtype=np.float64)
+        B = rng.random((qubits,qubits), dtype=np.float64)
+        A = (A - A.T)/2
+        B = (B + B.T)/2
+        alpha = (np.kron(A, np.eye(2,dtype=np.float64)) + np.kron(B, np.array([[0,1],[-1,0]],dtype=np.float64)))
+
+        R = linalg.expm(-alpha)
+
+        exponent = np.zeros_like(majs[0])
+        for i in range(2*qubits):
+            for j in range(2*qubits):
+                exponent += (alpha[i][j]/4.)*majs[i]@majs[j]
+        passive = linalg.expm(exponent)
+
+        # now generate a random FLO unitary so we can construct M
+        A = rng.random((2*qubits, 2*qubits), dtype=np.float64)
+        A = (A - A.T)/2.
+        RA = linalg.expm(-A)
+        exponent = np.zeros_like(majs[0])
+        for i in range(2*qubits):
+            for j in range(2*qubits):
+                exponent += (A[i][j]/4.)*majs[i]@majs[j]
+        U = linalg.expm(exponent)
+            
+        # U|0><0|U^\dagger K A = <0| U^\dagger KA U |0>
+        
+        active_lambdas = rng.random(qubits//2, dtype=np.float64)
+
+        exponent = np.zeros_like(majs[0])
+        for i in range(qubits//2):
+            exponent += (active_lambdas[i]/2.)*(majs[4*i]@majs[4*i+2] - majs[4*i+1]@majs[4*i+3])
+        activeU = linalg.expm(exponent)
+
+        correct_prod = (U.conjugate().transpose() @ passive @ activeU @ U)[0,0]
+
+        M = np.zeros((2*qubits, 2*qubits), dtype=np.float64)
+        for i in range(qubits):
+            M[2*i][2*i+1] = 1
+            M[2*i+1][2*i] = -1
+        M = RA.T @ M @ RA
+        obj = {"type": "mka_prod",
+               "qubits": qubits,
+               "M": list(M.T.reshape(2*qubits*2*qubits)),
+               "R": list(R.T.reshape(2*qubits*2*qubits)),
+               "RphaseR": passive[0,0].real,
+               "RphaseI": passive[0,0].imag,
+               "prodR": correct_prod.real,
+               "prodI": correct_prod.imag,
+               "A": list(active_lambdas),
+               }
+        print(json.dumps(obj),end="")
+        
 if __name__ == "__main__":
     import argparse
 
@@ -300,6 +366,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--decompose-passive',default="0",type=int, help="number passive FLO unitary decompositions to test (defaults to 0)")
     parser.add_argument('-o', '--symplectic-orthogonal',default="0",type=int, help="number symplectic orthogonal factorizations to test (defaults to 0)")
     parser.add_argument('-k', '--aka-kak',default="0",type=int, help="number of aka to kak calculations to test (defaults to 0)")
+    parser.add_argument('-m', '--mka',default="0",type=int, help="number of aka to mka products to test (defaults to 0)")
     parser.add_argument('-s', '--seed',default="1000",type=int, help="random seed")
     parser.add_argument('-q', '--qubits',default="4",type=int, help="number of qubits")
     args = parser.parse_args(sys.argv[1:])
@@ -314,3 +381,6 @@ if __name__ == "__main__":
         make_symplectic_orthogonal_decompostion_test(seed=args.seed, count=args.symplectic_orthogonal, qubits=args.qubits)
     if args.aka_kak > 0:
         make_aka_kak_test(seed=args.seed, count=args.aka_kak, qubits=args.qubits)
+    if args.mka > 0:
+        make_MKA_test(seed=args.seed, count=args.mka, qubits=args.qubits)
+        
