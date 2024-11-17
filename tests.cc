@@ -1,4 +1,5 @@
 #include "flo.h"
+#include "passive.h"
 #include "json.hpp"
 #include <iomanip>
 using json = nlohmann::json;
@@ -13,8 +14,8 @@ double decompose_passive_test(json j){
   double phaseI = j["phaseImag"];
   std::complex<double> phase = phaseR + 1.i * phaseI;
   
-  DecomposedPassive p = decompose_passive_flo_unitary(R, qubits, phase);
-  std::cout << "c++ phase: " << phase << ", "<< p.phase << std::endl;
+  DecomposedPassive p = PassiveFLO(qubits, R, phase).decompose();
+
   double max_error = abs(p.phase - phase);
   
   matrix_conjugate_inplace_double(R, p.R, 2*qubits);
@@ -64,8 +65,10 @@ double inner_product_test(json j){
   std::complex<double> phase2 = phase2R + phase2I*1.i;
   std::vector<double> A1 = j["l1"];
   std::vector<double> A2 = j["l2"];
-  
-  std::complex<double> prod = inner_prod(qubits, A1, R1, phase1, A2, R2, phase2);
+  PassiveFLO K1(qubits, R1, phase1);
+  PassiveFLO K2(qubits, R2, phase2);
+  std::complex<double> prod = inner_prod(qubits, A1, K1, A2, K2);
+
   return abs(prod - correct_prod);
 }
 
@@ -81,17 +84,17 @@ double cb_inner_prod_adjacent_qubits_test(json j){
   double phaseI = j["phaseImag"];
   std::complex<double> phase = phaseR + 1.i * phaseI;
   std::vector<double> l = j["l"];
-  
+
   int y = 0;
-  //std::cout << "y = ";
   for(int k = 0; k < qubits/2; k++){
     if(c_vec[4*k] == 1){
       y ^= (1<<k);
     }
   }	
-  DecomposedPassive p = decompose_passive_flo_unitary(R, qubits, phase);
-  
+  DecomposedPassive p = PassiveFLO(qubits, R, phase).decompose();
+
   std::complex<double> val = cb_inner_prod_adjacent_qubits(qubits, y, p,  l);
+
   return abs(val - pythonval);  
 }
 
@@ -179,14 +182,14 @@ double aka_to_kak_test(json j){
   std::vector<double> R = j["R"];
   double phaseR = j["phaseReal"];
   double phaseI = j["phaseImag"];
-
-  std::tuple<std::complex<double>, std::vector<double>, std::complex<double>, std::vector<double>, std::complex<double>, std::vector<double> > tuple = aka_to_kak(qubits, lambda1, R, std::complex<double>(phaseR, phaseI), lambda2);
+  PassiveFLO K(qubits, R, std::complex<double>(phaseR, phaseI));
+  std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO > tuple = aka_to_kak(qubits, lambda1, K, lambda2);
 
   std::complex<double> val = std::get<0>(tuple);
   std::complex<double> pythonVal(j["pythonValR"], j["pythonValI"]);
 
   double error = std::min(abs(val - pythonVal), abs(val + pythonVal));
-  std::vector<double> lambda = std::get<5>(tuple);
+  std::vector<double> lambda = std::get<2>(tuple);
   std::vector<double> A_R_matrix(2*qubits*2*qubits, 0.);
   std::vector<double> A1_R_matrix(2*qubits*2*qubits, 0.);
   std::vector<double> A2_R_matrix(2*qubits*2*qubits, 0.);
@@ -225,7 +228,7 @@ double aka_to_kak_test(json j){
   }
   //should be R^T R = I
   std::vector<double> R1 = matmul_square_double(A2_R_matrix, matmul_square_double(R, A1_R_matrix, 2*qubits), 2*qubits);
-  std::vector<double> R2 = matmul_square_double(std::get<1>(tuple), matmul_square_double(A_R_matrix, std::get<3>(tuple), 2*qubits), 2*qubits);
+  std::vector<double> R2 = matmul_square_double(std::get<1>(tuple).R, matmul_square_double(A_R_matrix, std::get<3>(tuple).R, 2*qubits), 2*qubits);
   
   std::vector<double> identity = matmul_square_double(CblasTrans, CblasNoTrans, R1, R2, 2*qubits);
 
@@ -252,7 +255,7 @@ double MKA_test(json j){
 
   std::complex<double> pythonProd(j["prodR"], j["prodI"]);
   
-  DecomposedPassive p = decompose_passive_flo_unitary(R, qubits, Rphase);
+  DecomposedPassive p = PassiveFLO(qubits, R, Rphase).decompose();
   
   std::complex<double> prod = inner_prod_M_P_A(qubits, M, p, A);
   //std::cout << prod << ", " << pythonProd << std::endl;

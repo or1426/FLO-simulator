@@ -152,7 +152,7 @@ def make_passive_decomp_tests(seed=1000, count=2, qubits = 4):
         for i in range(2*qubits):
             for j in range(2*qubits):
                 exponent += (alpha[i][j]/4.) * majs[i]@majs[j]
-        print("python phases", phase, linalg.expm(exponent)[0,0], file=sys.stderr)
+
         obj = {"type": "passive-decomp", 
                "qubits": qubits,
                "R": list(R.T.reshape(2*qubits*2*qubits)),
@@ -179,7 +179,7 @@ def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False,
         phase = np.exp(-(1.j/4.)*(alpha @ np.kron(np.eye(qubits,dtype=complex), np.array([[0,1],[-1,0]],dtype=complex))).trace())
 
         l = rng.random(qubits//2, dtype=np.float64)
-        
+
         c_vec = np.zeros(2*qubits, dtype=int)
         short_c_vec = None
         if paired_qubits == True:
@@ -192,28 +192,25 @@ def make_comp_basis_inner_product_tests(seed=1000, count=2, paired_qubits=False,
         for i in range(qubits):
             c_vec[2*i] = short_c_vec[i]
 
-        y = 0
-        for i, c in enumerate(c_vec):
-            if c != 0:
-                y ^= (1<<(i//2))
-                       
+
         majs = compute_majs(qubits)
         exponent = np.zeros((2**qubits, 2**qubits), dtype=complex)            
         for i in range(2*qubits):
-            for j in range(i):
-                exponent += majs[i]@majs[j]*alpha[i][j]/2                
+            for j in range(2*qubits):
+                exponent += majs[i]@majs[j]*alpha[i][j]/4
         K = linalg.expm(exponent)
-        
+
         vec = np.zeros(2**qubits,dtype=complex)
         vec[0] = 1
         for i, li in enumerate(l):
             vec = linalg.expm(li*(majs[4*i]@majs[4*i+2] -majs[4*i+1]@majs[4*i+3])/2.) @ vec        
         vec = K @ vec
-        
+
         y = 0
         for i, c in enumerate(c_vec):
             if c != 0:
-                y ^= (1<<(i//2))
+                y ^= (1<<( (qubits-1-(i// 2)) ))
+
         val = vec[y]
         obj = {"type": "cb-inner-product", 
                "qubits": qubits,
@@ -358,6 +355,8 @@ def make_MKA_test(seed=1000, count=2, qubits = 4):
         print(json.dumps(obj),end="")
         
 if __name__ == "__main__":
+
+    
     import argparse
 
     parser = argparse.ArgumentParser()
