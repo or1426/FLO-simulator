@@ -2,8 +2,7 @@
 
 using namespace std::complex_literals;
 int main(){
-  int qubits = 4;
-  FLOState s(qubits);
+  int qubits = 4;  
 
   //std::vector<double> lambda = std::vector<double>(qubits/2,0.);
   //lambda[0] = -M_PI/4.;
@@ -17,25 +16,34 @@ int main(){
   A[dense_fortran(2,1, 2)] = 1/sqrt(2);
   A[dense_fortran(2,2, 2)] = 1/sqrt(2);
 
-  s.apply_2_qubit_matchgate(1, A, B);
+  B[dense_fortran(1,1, 2)] = 1;
+  B[dense_fortran(1,2, 2)] = 0;
+  B[dense_fortran(2,1, 2)] = 0;
+  B[dense_fortran(2,2, 2)] = 1;
 
-  std::cout << "full state data" <<std::endl;
-  std::cout << "omega = " << s.omega << std::endl;
-  std::cout << "lambda = ";
+  
 
-  for(double d: s.A){
-    std::cout << d << ", ";
-  }
-  std::cout <<std::endl;
-  std::cout << "K: " << (*s.K.phase) << std::endl;
+  for(int i = 6; i < 7; i++){
 
-  for(int i = 0; i < 4*qubits*qubits; i++){
-    if(abs(s.K.R[i]) < 1e-12){
-      s.K.R[i] = 0;
+    std::vector<int> x(qubits);
+    int popcount = 0;
+    for(int q = 0; q < qubits; q++){
+      popcount += (i>>q) & 1;
+      x[q] = (i>>q) & 1;
+    }
+    if(popcount % 2 == 0){
+      FLOState s(qubits);
+      s.apply_2_qubit_matchgate(1, A, B);
+
+      FLOState ketX = FLOState::computational_basis_state(qubits, x);
+      std::complex<double> prod = ketX.inner_product(s);
+      std::cout << "final prod x = ";
+      for(int q = 0; q < qubits; q++){
+	std::cout << x[q];
+      }
+      std::cout << " " << prod << std::endl;
     }
   }
-  
-  print_fortran(s.K.R, 2*qubits);
 
   
   

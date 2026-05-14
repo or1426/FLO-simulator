@@ -58,7 +58,7 @@ class FLOState {
   
   void apply_antipassive(std::vector<double> lambda){
     if(this->A2){
-      for(int i = 0; i < qubits; i++){
+      for(int i = 0; i < lambda.size(); i++){
 	(*(this->A2))[i] += lambda[i];
       }
     }else{
@@ -220,12 +220,12 @@ class FLOState {
       print_fortran(permutation.R, 2*qubits);
       std::cout << std::endl;
       DecomposedPassive d = permutation.decompose();
-      std::cout << d.phase << std::endl;
-
-
-      this->apply_passive(CblasNoTrans, permutation);
-      this->apply_antipassive(antipassive_vector);
+      std::cout << d.phase << std::endl;      
+            
       this->apply_passive(CblasTrans, permutation);
+      this->apply_antipassive(antipassive_vector);
+      this->apply_passive(CblasNoTrans, permutation);
+
     }
     std::cout << "applying AK1 matrix" << std::endl;
     this->apply_passive(PassiveFLO(this->qubits, AK1Matrix, std::exp(std::complex<double>(0., Adecomp[0]))));
