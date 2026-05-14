@@ -180,15 +180,22 @@ double aka_to_kak_test(json j){
   std::vector<double> lambda1 = j["lambda1"];
   std::vector<double> lambda2 = j["lambda2"];
   std::vector<double> R = j["R"];
+
+  std::cout << "c++ R" << std::endl;
+  print_fortran(R, 2*qubits);
+  std::cout << std::endl;
+  
   double phaseR = j["phaseReal"];
   double phaseI = j["phaseImag"];
   PassiveFLO K(qubits, R, std::complex<double>(phaseR, phaseI));
   std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO > tuple = aka_to_kak(qubits, lambda1, K, lambda2);
 
-  std::complex<double> val = std::get<0>(tuple);
+  //std::complex<double> val = std::get<0>(tuple);
+
+  std::complex<double> val = (*std::get<1>(tuple).phase) * (*std::get<3>(tuple).phase) * anti_passive_vacuum_expectation_value(std::get<2>(tuple));
   std::complex<double> pythonVal(j["pythonValR"], j["pythonValI"]);
 
-  double error = std::min(abs(val - pythonVal), abs(val + pythonVal));
+  double error = abs(val - pythonVal); //, abs(val + pythonVal));
   std::vector<double> lambda = std::get<2>(tuple);
   std::vector<double> A_R_matrix(2*qubits*2*qubits, 0.);
   std::vector<double> A1_R_matrix(2*qubits*2*qubits, 0.);
@@ -241,7 +248,7 @@ double aka_to_kak_test(json j){
       }
     }
   }
-
+  std::cout << "val = " << val << " pythonval = " << pythonVal << std::endl;
   
   return error;  
 }
@@ -274,6 +281,7 @@ int main(int argc, char * argv[])
   double max_error_so = -1;
   double max_error_aka_kak = -1;
   double max_error_MKA = -1;
+  
   int decompose_passive_count = 0;
   int flo_ip_count = 0;
   int cb_ip_count = 0;
@@ -336,7 +344,6 @@ int main(int argc, char * argv[])
   std::cout << std::setw(20) << "so decomposition " << std::setw(20) << max_error_so << so_count << std::endl;
   std::cout << std::setw(20) << "aka to kak form " << std::setw(20) << max_error_aka_kak << aka_kak_count << std::endl;
   std::cout << std::setw(20) << "MKA " << std::setw(20) << max_error_MKA << mka_prod_count << std::endl;
-  
   /*
   std::string helpmessage("args:\n\t-d for testing the decomposition of passive FLO unitaries\n\t-c for computational basis inner products\n\t-i for general inner products");
 

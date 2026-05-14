@@ -125,7 +125,7 @@ std::vector<double> reshuffled_inverse(std::vector<double> A, int n){
 }
 
 
-int selectfn(const double * r, const double *i){
+int selectfn_imag_small(const double * r, const double *i){
   return abs(*i) < 1e-13;
 }
 
@@ -193,14 +193,14 @@ std::vector<double> symplectic_orthogonal_factorize(int qubits, std::vector<doub
   int32_t info;
 
   int MINUS_1 = -1;
-  LAPACK_dgees("V", "S", &selectfn, &qubits, &lower_right[0], &qubits, &sdim,
+  LAPACK_dgees("V", "S", &selectfn_imag_small, &qubits, &lower_right[0], &qubits, &sdim,
                &eigenvalues_r[0], &eigenvalues_i[0], &schurvectors[0],
                &qubits, &workopt[0], &MINUS_1,  &bwork[0], &info);
 
 
   int lwork = (int)workopt[0];
   std::vector<double> work(lwork);
-  LAPACK_dgees("V", "S", &selectfn, &qubits, &lower_right[0], &qubits, &sdim,
+  LAPACK_dgees("V", "S", &selectfn_imag_small, &qubits, &lower_right[0], &qubits, &sdim,
                &eigenvalues_r[0], &eigenvalues_i[0], &schurvectors[0],
                &qubits, &work[0], &lwork, &bwork[0], &info);
   

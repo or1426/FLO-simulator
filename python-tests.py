@@ -22,7 +22,7 @@ def compute_majs(qubits):
         odd = pY
         
         for j in range(i):
-            even = np.kron(pZ, even,)
+            even = np.kron(pZ, even)
             odd = np.kron(pZ,odd)
         for j in range(i+1, qubits):
             even = np.kron(even, pI)
@@ -57,7 +57,8 @@ def make_aka_kak_test(seed=1000, count = 2, qubits = 4):
 
         R = linalg.expm(-alpha)
         phase = np.exp(-(1.j/4.)*(alpha @ np.kron(np.eye(qubits,dtype=complex), np.array([[0,1],[-1,0]],dtype=complex))).trace())
-        
+        print("python R", file=sys.stderr)
+        print(R, file=sys.stderr)
         l1 = list(rng.random(qubits//2, dtype=np.float64))
         l2 = list(rng.random(qubits//2, dtype=np.float64))
         #print(l1, file=sys.stderr)
@@ -104,23 +105,23 @@ def make_aka_kak_test(seed=1000, count = 2, qubits = 4):
                 
         T, Z = linalg.schur(U, output="real", overwrite_a=False)
         
-        exponent = np.zeros_like(majs[0])
+        #exponent = np.zeros_like(majs[0])
 
-        for i in range(qubits):
-            if T[2*i, 2*i+1] < 0:
-                T[2*i, 2*i+1] *= -1
-                T[2*i+1, 2*i] *= -1
-                Z[:,[2*i, 2*i+1]]  = Z[:,[2*i+1,2*i]]
-                
-            theta = np.arctan2(T[2*i+1, 2*i], T[2*i, 2*i])
-            exponent += (1/2.)*theta*majs[2*i] @ majs[2*i+1]
+        #for i in range(qubits):
+        #    if T[2*i, 2*i+1] < 0:
+        #        T[2*i, 2*i+1] *= -1
+        #        T[2*i+1, 2*i] *= -1
+        #        Z[:,[2*i, 2*i+1]]  = Z[:,[2*i+1,2*i]]
+        #        
+        #    theta = np.arctan2(T[2*i+1, 2*i], T[2*i, 2*i])
+        #    exponent += (1/2.)*theta*majs[2*i] @ majs[2*i+1]
         #print("python schur", file=sys.stderr)
         #print(Z, file=sys.stderr)
         #print("python phase: ", linalg.expm(exponent)[0,0], file=sys.stderr)
         
         obj = {"type": "aka_kak",
-               "pythonValR": linalg.expm(exponent)[0,0].real,
-               "pythonValI": linalg.expm(exponent)[0,0].imag,
+               "pythonValR": mat[0,0].real,  #linalg.expm(exponent)[0,0].real,
+               "pythonValI": mat[0,0].imag, #linalg.expm(exponent)[0,0].imag,
                "qubits": qubits,
                "R": list(R.T.reshape(2*qubits*2*qubits)),
                "lambda1": l1,
@@ -326,7 +327,7 @@ def make_MKA_test(seed=1000, count=2, qubits = 4):
                 exponent += (A[i][j]/4.)*majs[i]@majs[j]
         U = linalg.expm(exponent)
             
-        # U|0><0|U^\dagger K A = <0| U^\dagger KA U |0>
+        # tr[ U|0><0|U^\dagger K A ] = <0| U^\dagger KA U |0>
         
         active_lambdas = rng.random(qubits//2, dtype=np.float64)
 

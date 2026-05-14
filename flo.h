@@ -14,10 +14,8 @@
 #include "so-factorization.h"
 #include "passive.h"
 
-std::complex<double> cb_inner_prod(int qubits, std::vector<int> x, std::vector<double> R, std::complex<double> phase, std::vector<double> l);
+
 std::complex<double> inner_prod(int qubits, std::vector<double> A1, PassiveFLO K1, std::vector<double> A2, PassiveFLO K2);
-//std::complex<double> cb_inner_prod_adjacent_qubits(int qubits, std::vector<int> y, DecomposedPassive &p, std::vector<double> T, std::vector<double> A);
-//std::complex<double> inner_prod_smooth(int qubits, std::vector<double> A1, std::vector<double> K1, std::complex<double> phase1,std::vector<double> A2, std::vector<double> K2, std::complex<double> phase2);
 
 //we return the inner product, (K1, K1phase), (K2, K2phase), A
 //enough information to completely reproduce the KAK decompostion of U
@@ -25,4 +23,6 @@ std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO > a
 
 std::complex<double> inner_prod_M_P_A(int qubits, std::vector<double> M, DecomposedPassive &p, std::vector<double> A);
 std::complex<double> cb_inner_prod_adjacent_qubits(int qubits, int y, DecomposedPassive &p, std::vector<double> A);
+std::vector<std::pair<int,int>> reorder_vec(std::vector<int> x);
+std::complex<double> anti_passive_vacuum_expectation_value(std::vector<double> lambda);
 #endif

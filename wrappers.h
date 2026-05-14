@@ -7,6 +7,11 @@
 #include <cmath>
 #include "pfapack.h" //we only need this for dense_fortran I think
 
+#ifndef lapack_complex_double
+#define lapack_complex_double std::complex<double>
+#endif 
+#include <lapack.h>
+
 /*
 template<typename T>
 void print_fortran(std::vector<T> A, int n){
@@ -36,4 +41,10 @@ int matrix_conjugate_inplace_double(std::vector<double> &A, std::vector<double> 
 int matrix_conjugate_inplace_double(std::vector<double> &A, std::vector<double> const& B,int n, CBLAS_TRANSPOSE trans);
 
 void matrix_add_block(std::vector<std::complex<double> > &A, std::vector<double> B, std::complex<double> scaling, int Adim, int Bdim, int AstartX, int AstartY, int BstartX, int BstartY, int block_width, int block_height);
+
+std::tuple<
+  std::vector<std::complex<double> >,
+  std::vector<std::complex<double> > > eigendecompose_2_by_2_unitary(std::vector<std::complex<double> > U);
+
+std::complex<double> trace(std::vector<std::complex<double>> A, int n);
 #endif

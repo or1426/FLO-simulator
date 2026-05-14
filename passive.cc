@@ -4,7 +4,7 @@ using namespace std::complex_literals;
 
 
 DecomposedPassive PassiveFLO::decompose(){
-    //we use lapack so we need some different types
+  //we use lapack so we need some different types
   using cdouble = std::complex<double>; 
   const int32_t n = this->qubits;
   std::vector<cdouble> U(n*n);
@@ -14,7 +14,7 @@ DecomposedPassive PassiveFLO::decompose(){
     }
   }
   std::vector<cdouble> eigenvectors(n*n);
-  std::vector<cdouble>  eigenvalues(n);
+  std::vector<cdouble> eigenvalues(n);
 
   int32_t m;
   int32_t isuppz;
@@ -75,8 +75,8 @@ DecomposedPassive PassiveFLO::decompose(){
     lambdas[i] = -std::atan2((eigenvalues[i].imag()), (eigenvalues[i].real())); //TODO CHECK THIS!!!!!
     sum += lambdas[i]/2.;
   }
-  std::complex<double> new_phase = std::exp(sum*1.i);
-
+  std::complex<double> new_phase = std::exp(sum*1.i);  
+     
   //we might be wrong by a factor of minus 1 in new phase
   //if we are we have to add 2pi to lambda_0
   if(this->phase){
@@ -98,6 +98,7 @@ DecomposedPassive PassiveFLO::decompose(){
 PassiveFLO PassiveFLO::multiply(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, PassiveFLO A, PassiveFLO B){
   //std::optional<std::complex<double> > phase;
   if(A.phase && B.phase){
+    std::cout << "passive multiply both have phase " << A.phase.value() << " " << B.phase.value() << std::endl;
     std::complex<double> phase = ((transA == CblasTrans) ? std::conj(*A.phase) : *A.phase) *
       ((transB == CblasTrans) ? std::conj(*B.phase) : *B.phase);
     return PassiveFLO(A.qubits, //we ignore the possibility they have different numbers of qubits
@@ -105,11 +106,14 @@ PassiveFLO PassiveFLO::multiply(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, 
 		      phase);
 
   }else{
+    std::cout << "passive multiply one missing phase " << A.phase.has_value() << " " << B.phase.has_value() << std::endl;
     return PassiveFLO(A.qubits, //we ignore the possibility they have different numbers of qubits
 		      matmul_square_double(transB, transA, B.R, A.R, 2*A.qubits));
   }
-  
+}
 
+PassiveFLO PassiveFLO::multiply(PassiveFLO A, PassiveFLO B){
+  return PassiveFLO::multiply(CblasNoTrans,CblasNoTrans, A, B);
 }
 
 //DecomposedPassive decompose_passive_flo_unitary(std::vector<double> R,int qubits, std::complex<double> phase){

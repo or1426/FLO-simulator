@@ -336,3 +336,48 @@ void matrix_add_block(std::vector<std::complex<double> > &A, std::vector<double>
     }
   }
 }
+
+
+std::tuple<
+  std::vector<std::complex<double> >,
+  std::vector<std::complex<double> > > eigendecompose_2_by_2_unitary(std::vector<std::complex<double> > U){
+
+  std::vector<std::complex<double> > eigenvalues(2);
+  std::vector<std::complex<double> > eigenvectors(4);
+
+
+  std::vector<double> rwork(2);
+  int32_t info;
+  int sdim = 0;
+  int lwork = 20;
+  std::vector<std::complex<double> > work(lwork);
+  int n = 2;
+  LAPACK_zgees("V", "N", NULL, &n, &U[0], &n, &sdim,
+	       &eigenvalues[0], &eigenvectors[0],
+	       &n, &work[0], &lwork, &rwork[0], NULL, &info);
+
+  
+  /*
+  std::complex<double> trace = U[dense_fortran(1,1,2)] + U[dense_fortran(2,2,2)];
+  std::complex<double> det = U[dense_fortran(1,1,2)] * U[dense_fortran(2,2,2)] - U[dense_fortran(1,2,2)] * U[dense_fortran(2,1,2)];
+  
+  eigenvalues[0] =  (trace + std::sqrt(trace*trace - 4*det))/2.;
+  eigenvalues[1] =  (trace - std::sqrt(trace*trace - 4*det))/2.;
+
+  cblas_drotg(&a,&b,&this->c, &this->s);
+
+  std::complex<double> A = 
+  */
+  
+  return std::make_tuple(eigenvalues, eigenvectors);
+}
+
+
+std::complex<double> trace(std::vector<std::complex<double>> A, int n) {
+  std::complex<double> t = 0;
+
+  for(int i = 0; i < n; i++){
+    t += A[dense_fortran(i+1, i+1, n)];
+  }
+  return t;
+}
