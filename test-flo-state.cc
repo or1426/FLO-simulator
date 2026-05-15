@@ -11,10 +11,12 @@ int main(){
   std::vector<std::complex<double>> A = std::vector<std::complex<double>>(4,0.);
   std::vector<std::complex<double>> B = std::vector<std::complex<double>>(4,0.);
 
-  A[dense_fortran(1,1, 2)] = 1/sqrt(2);
-  A[dense_fortran(1,2, 2)] = -1/sqrt(2);
-  A[dense_fortran(2,1, 2)] = 1/sqrt(2);
-  A[dense_fortran(2,2, 2)] = 1/sqrt(2);
+
+  double theta = 0.3;
+  A[dense_fortran(1,1, 2)] = cos(theta);
+  A[dense_fortran(1,2, 2)] = sin(theta);
+  A[dense_fortran(2,1, 2)] = -sin(theta);
+  A[dense_fortran(2,2, 2)] = cos(theta);
 
   B[dense_fortran(1,1, 2)] = 1;
   B[dense_fortran(1,2, 2)] = 0;
@@ -42,10 +44,15 @@ int main(){
 	std::cout << x[q];
       }
       std::cout << " " << prod << std::endl;
+      std::cout << "cos(theta) " << cos(theta) << " sin(theta) = " << sin(theta) << std::endl;
+      
     }
   }
 
-  
+  std::cout << "A:" << std::endl;
+  print_fortran(A, 2);
+  std::cout << "B:" << std::endl;
+  print_fortran(B, 2);
   
   /*
   
