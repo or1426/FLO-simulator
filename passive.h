@@ -98,8 +98,6 @@ class PassiveFLO{
 
     std::vector<double> R(2*qubits*2*qubits, 0);
     std::vector<double> alpha2(2*qubits*2*qubits, 0);
-    std::cout << std::setw(6) << std::scientific << std::setprecision(5) << std::showpos;
-    std::cout << "vals: ";
     for(int i = 0; i < qubits; i++){
       for(int j = 0; j < qubits; j++){
 	R[dense_fortran(2*i+1, 2*j+1, 2*qubits)] = eigenvecs[dense_fortran(i+1, j+1, qubits)].real();
@@ -114,13 +112,7 @@ class PassiveFLO{
 	alpha2[dense_fortran(2*i+1, 2*j+2, 2*qubits)] = B[dense_fortran(i+1, j+1, qubits)];
 	alpha2[dense_fortran(2*i+2, 2*j+1, 2*qubits)] = -B[dense_fortran(i+1, j+1, qubits)];
       }
-      std::cout << eigenvals[i] << ", ";
     }
-    std::cout <<std::endl;
-    
-    print_fortran(alpha2, 2*qubits);
-    std::cout << std::endl;
-    print_fortran(matmul_square_double(CblasTrans, CblasNoTrans, R, matmul_square_double(CblasNoTrans, CblasNoTrans, alpha2, R, 2*qubits), 2*qubits), 2*qubits);
 
     return PassiveFLO(qubits, R);
   }

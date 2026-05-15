@@ -98,7 +98,6 @@ DecomposedPassive PassiveFLO::decompose(){
 PassiveFLO PassiveFLO::multiply(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, PassiveFLO A, PassiveFLO B){
   //std::optional<std::complex<double> > phase;
   if(A.phase && B.phase){
-    std::cout << "passive multiply both have phase " << A.phase.value() << " " << B.phase.value() << std::endl;
     std::complex<double> phase = ((transA == CblasTrans) ? std::conj(*A.phase) : *A.phase) *
       ((transB == CblasTrans) ? std::conj(*B.phase) : *B.phase);
     return PassiveFLO(A.qubits, //we ignore the possibility they have different numbers of qubits
@@ -106,7 +105,6 @@ PassiveFLO PassiveFLO::multiply(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB, 
 		      phase);
 
   }else{
-    std::cout << "passive multiply one missing phase " << A.phase.has_value() << " " << B.phase.has_value() << std::endl;
     return PassiveFLO(A.qubits, //we ignore the possibility they have different numbers of qubits
 		      matmul_square_double(transB, transA, B.R, A.R, 2*A.qubits));
   }

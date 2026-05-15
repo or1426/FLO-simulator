@@ -218,30 +218,19 @@ std::complex<double> cb_inner_prod_adjacent_qubits(int qubits, int y, Decomposed
 std::complex<double> inner_prod(int qubits, std::vector<double> A1, PassiveFLO K1 ,std::vector<double> A2, PassiveFLO K2)
 {
   //first compute K_1^dagger K_2
-  std::cout << "inner_prod 1" << std::endl;
   PassiveFLO K = PassiveFLO::multiply(CblasTrans, CblasNoTrans, K1, K2);
-  std::cout << "inner_prod 2" << std::endl;
-  //std::vector<double> K(2*qubits*2*qubits);
-  //matmul_square_double(CblasNoTrans, CblasTrans, K2, K1, K, 2*qubits);
-
-  std::cout << K.phase.value() << std::endl;
-  print_fortran(K.R, 2*K.qubits);
-  std::cout << std::endl;
   
   DecomposedPassive p = K.decompose(); //decompose_passive_flo_unitary(K, qubits, std::conj(phase1)*phase2);
   if(std::abs(p.phase - std::conj(*K1.phase)*(*K2.phase)) > 1e-10){
     std::cout << "expected phase "<<std::conj(*K1.phase)*(*K2.phase)<< ", found "<< p.phase << std::endl;  
   }
-  std::cout << "inner_prod 3" << std::endl;
-
   
   std::vector<double> M(2*qubits*2*qubits, 0.);
   for(int i = 0; i < qubits; i++){
     M[dense_fortran(2*i+1, 2*i+2, 2*qubits)] = 1;
     M[dense_fortran(2*i+2, 2*i+1, 2*qubits)] =-1;
   }
-  
-  
+    
   std::vector<double> A(qubits/2, 0.);
   for(int i = 0; i < qubits/2; i++){
     A[i] = -A1[i] + A2[i];
@@ -365,15 +354,6 @@ std::complex<double> aka_inner_product(int qubits, std::vector<double> V, std::v
   for(int i = 0; i < 2*qubits; i++){
     det *= std::complex<double>(eigenvalues_r[i], eigenvalues_i[i]);
   }
-  //std::cout << "V determinant = " << det << std::endl;
-  
-  //std::cout.width(2);
-  //std::cout << std::setprecision(1) << std::showpos << std::fixed;
-
-  //print_fortran(G, G_dim);
-  //print_fortran_ignoring_imag(G,G_dim);
-  
-  
   std::complex<double> pfaffian=0;
   int info;
   info = skpfa_z(G_dim, &G[0], &pfaffian, "U", "P");
@@ -396,9 +376,6 @@ std::tuple<std::vector<double>,std::vector<double>,std::vector<double> > KAK_dec
   std::vector<double> Q1(2*qubits*2*qubits, 0.);
   std::vector<double> Q2(2*qubits*2*qubits, 0.);
   std::vector<double> A = symplectic_orthogonal_factorize(qubits, R, Q1, Q2);
-  //std::cout << "A = "<< std::endl;
-  //print_fortran(A, 2*qubits);
-  //std::cout << std::endl;
   //A has the form
   //[1  0  0  0]
   //[0  c  0  s]
@@ -418,7 +395,7 @@ std::tuple<std::vector<double>,std::vector<double>,std::vector<double> > KAK_dec
   for(int i = 0; i < qubits/2; i++){
     double theta = atan2(A[dense_fortran(4*i+2, 4*i+4, 2*qubits)], A[dense_fortran(4*i+2, 4*i+2, 2*qubits)]);
     lambda[i] = -theta/2;
-    //std::cout << i << " " << theta << " " << cos(theta/2) << " " << sin(theta/2) << std::endl;
+
     //now we right-multiply the symplectic-orthogonal transformation 
     //[ c  0  s  0]
     //[ 0  c  0  s]
@@ -448,40 +425,13 @@ std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO> ak
   //and decompose U to find a V such that <0| V^\dagger U V |0> is a complex number of absolute value 1
   //then we KAK decompose U using the symplectic orthogonal block decomposition
   //then we compute <0| V^\dagger K1 A K2 V |0> and <0| V^\dagger L1 K L2 V |0>
-  //and compare them so we get the phase correct
-  std::cout << "entering aka_to_kak" << std::endl;
-  std::cout << "K phase: " << K.phase.value()  << std::endl;
-  print_fortran(K.R, 2*K.qubits);
-  std::cout << std::endl <<"lambda1: ";
-  for(double val: lambda1){
-    std::cout << val<< " ";
-
-  }
-  std::cout << std::endl;
-  std::cout << "lambda2: ";
-  for(double val: lambda2){
-    std::cout << val<< " ";
-  }
-  std::cout << std::endl;
-  
+  //and compare them so we get the phase correct  
   std::vector<double> U = K.R;
-  std::cout << "U =" << std::endl;
-  print_fortran(U, 2*qubits);
-  std::cout << std::endl;
   left_apply_antipassive(qubits, U, lambda2);
-  std::cout << "U2 =" << std::endl;
-  print_fortran(U, 2*qubits);
-  std::cout << std::endl;
   right_apply_antipassive(qubits, U, lambda1);
-  std::cout << "U3 =" << std::endl;
-  print_fortran(U, 2*qubits);
-  std::cout << std::endl;
   
   std::vector<double> Ucpy = U; //we need a copy of U for later and dgees will overwrite it
 
-  std::cout << "Ucpy = " << std::endl;
-  print_fortran(Ucpy, 2*qubits);
-  std::cout << std::endl;
   //now we real Schur decompose U
   //this will 2x2 block diagonalise it because it is orthogonal
   //we obtain V from this
@@ -520,13 +470,6 @@ std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO> ak
                &eigenvalues_r[0], &eigenvalues_i[0], &schurvectors[0],
                &n, &work[0], &lwork, &bwork[0], &info);
 
-  std::cout << "sdim = " << sdim << std::endl;
-
-  for(int i = 0; i < 2*qubits;i++){
-    std::cout << "(" << eigenvalues_r[i] << " " << eigenvalues_i[i] << ") ";
-  }
-  std::cout << std::endl;
-
   std::vector<int> minus_1_indicator(sdim,0);
   for(int i = 0; i < sdim; i++){
     if(U[dense_fortran(i+1,i+1, 2*qubits)] < 0){
@@ -535,13 +478,10 @@ std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO> ak
   }
   std::vector<std::pair<int,int> > permutation = reorder_vec(minus_1_indicator);
   for(int i = 0; i < permutation.size(); i++){
-    std::cout << permutation[i].first << " -> " << permutation[i].second << std::endl;
-
     std::swap(U[dense_fortran(permutation[i].first+1,permutation[i].first+1, 2*qubits)],
 	      U[dense_fortran(permutation[i].second+1,permutation[i].second+1, 2*qubits)]);
     
-    cblas_dswap(2*qubits, &schurvectors[dense_fortran(1, permutation[i].first+1, 2*qubits)], 1,  &schurvectors[dense_fortran(1, permutation[i].second+1, 2*qubits)], 1);
-    
+    cblas_dswap(2*qubits, &schurvectors[dense_fortran(1, permutation[i].first+1, 2*qubits)], 1,  &schurvectors[dense_fortran(1, permutation[i].second+1, 2*qubits)], 1);    
   }
 
   if((sdim % 2) != 0){
@@ -553,25 +493,14 @@ std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO> ak
   
   for(int i = 0; i < qubits; i++){
     if(U[dense_fortran(2*i+1, 2*i+2, 2*qubits)] < 0){
-      std::cout << U[dense_fortran(2*i+1, 2*i+1, 2*qubits)] << " " << U[dense_fortran(2*i+1, 2*i+2, 2*qubits)] << std::endl;
-      std::cout << U[dense_fortran(2*i+2, 2*i+1, 2*qubits)] << " " << U[dense_fortran(2*i+2, 2*i+2, 2*qubits)] << std::endl;
-      print_fortran(schurvectors, 2*qubits);
-      
-      std::cout << "swapping " << i << std::endl;
       //swap this row/col pair
       U[dense_fortran(2*i+1, 2*i+2, 2*qubits)] *= -1;
       U[dense_fortran(2*i+2, 2*i+1, 2*qubits)] *= -1;
       //now we need to right multiply a permutation on to schurvectors
       //this swaps columns 2*i+2 and 2*i+1
       cblas_dswap(2*qubits, &schurvectors[dense_fortran(1, 2*i+1, 2*qubits)], 1,  &schurvectors[dense_fortran(1, 2*i+2, 2*qubits)], 1);
-      std::cout << "now" << std::endl;
-      print_fortran(schurvectors, 2*qubits);
-      std::cout << std::endl;
-      
     }    
-  }
-  
-  std::cout << "Z^T U Z" << std::endl << std::showpos;
+  }  
 
   std::vector<double> Uprime = matmul_square_double(CblasTrans, CblasNoTrans, schurvectors, matmul_square_double(Ucpy, schurvectors, 2*qubits), 2*qubits);
   for(int i = 0; i < 4*qubits*qubits; i++){
@@ -580,15 +509,10 @@ std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO> ak
     }
   }
   
-  print_fortran(Uprime, 2*qubits);
-  std::cout << std::endl<< std::noshowpos;
-    
-  
   // U_{old} = V U_{new} V^T
   //calculate <0| V^T U_{old} V |0>  = <0| U_{new} |0>
   double sum = 0;
   for(int i = 0; i < qubits; i++){
-    std::cout << "phase " << i << " = " << atan2(U[dense_fortran(2*i+1, 2*i+2, 2*qubits)], U[dense_fortran(2*i+1, 2*i+1, 2*qubits)]) << std::endl;
     sum += atan2(U[dense_fortran(2*i+1, 2*i+2, 2*qubits)], U[dense_fortran(2*i+1, 2*i+1, 2*qubits)]);
   }
   
@@ -646,14 +570,11 @@ std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO> ak
 
   
   DecomposedPassive k1_decomp = K1.decompose(); //= decompose_passive_flo_unitary(K1, qubits, 0.);
-  std::cout << "k2k1_decomp" << std::endl;
   DecomposedPassive k2k1_decomp = PassiveFLO::multiply(CblasNoTrans, CblasNoTrans, K1, K2).decompose();
   //decompose_passive_flo_unitary(matmul_square_double(CblasNoTrans, CblasNoTrans, K2, K1, 2*qubits), qubits, 0.);
 
 
   std::complex<double> M_P_A2 = inner_prod_M_P_A(qubits, M, k2k1_decomp, new_a_lambda);
-  std::cout << "MPA " << M_P_A << " MPA2 " << M_P_A2 << " phase2 " << phase2 << std::endl;
-
   if(abs(M_P_A - M_P_A2) > abs(M_P_A + M_P_A2)){
     k2k1_decomp.phase *= -1;
     M_P_A2 *= -1;
@@ -661,16 +582,6 @@ std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO> ak
 
   K1.phase = k1_decomp.phase;
   K2.phase = k2k1_decomp.phase/k1_decomp.phase;
-  std::cout << "aka_kak phases: K1 "<< K1.phase.value() << " K2 " << K2.phase.value() << " K2K1 " << k2k1_decomp.phase  << " MPA " << M_P_A << " MPA2 " << M_P_A2 << std::endl;
-  std::cout << "K1.R" << std::endl;
-  print_fortran(K1.R, 2*K1.qubits);
-  std::cout << "K2.R" << std::endl;
-  print_fortran(K2.R, 2*K2.qubits);
-  std::cout << std::endl;
-  for(double d:new_a_lambda){
-    std::cout << d << " ";
-  }
-  std::cout << std::endl;
   
   //we return innerproduct, (K1, K1phase), (K2, K2phase), new_a_lambda
   //enough information to completely reproduce the KAK decompostion of U

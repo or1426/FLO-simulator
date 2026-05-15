@@ -69,7 +69,6 @@ public:
   void apply_passive(CBLAS_TRANSPOSE trans, PassiveFLO K2){
     if(this->A2){
       std::tuple<std::complex<double>, PassiveFLO, std::vector<double>, PassiveFLO> tuple = aka_to_kak(this->qubits, *(this->A2), this->K,  this->A);
-      std::cout << "applying passive, complicated case" << std::endl;
 
       //tuple[1]  A(tuple[2])  tuple[3] = A2 K A as orthogonal matrices
       this->K = PassiveFLO::multiply(trans, CblasNoTrans, K2, std::get<3>(tuple));
@@ -77,7 +76,6 @@ public:
       this->A2 = std::nullopt;
       this->omega *= (*(std::get<1>(tuple).phase));
     }else{
-      std::cout << "applying passive, simple case" << std::endl;
       this->K = PassiveFLO::multiply(trans, CblasNoTrans, K2, this->K);
     }
   }
@@ -92,18 +90,8 @@ public:
   //with unitary matrices for which det(A) = det(B)
   //we apply G(A,B) to qubits i and i+1
   void apply_2_qubit_matchgate(int qubit, std::vector<std::complex<double> >A, std::vector<std::complex<double> >B){
-    std::cout << "before"<<std::endl;
-    std::cout << "A"<<std::endl;
-    print_fortran(A, 2);
-    std::cout << "B"<<std::endl;
-    print_fortran(B, 2);
-
-
     std::vector<double> Adecomp = KAK_2_by_2_su(A);
     std::vector<double> Bdecomp = KAK_2_by_2_su(B);
-
-    std::cout << Adecomp[0] << " " << Adecomp[1] << " " << Adecomp[2] << std::endl;
-    std::cout << Bdecomp[0] << " " << Bdecomp[1] << " " << Bdecomp[2] << std::endl;
 
     //we have a passive-active KAK decomposition
     //where the only anti-passive part is the middle of the decomposition of A
@@ -157,20 +145,21 @@ public:
     */
     //and they have a phase K|0> = e^{ix}|0>
 
+    
     for(int i = 0; i < 4; i++){
       AK1Matrix[dense_fortran(2*qubit+i+1,2*qubit+i+1, 2*this->qubits)] = cos(Adecomp[0]);
       AK2Matrix[dense_fortran(2*qubit+i+1,2*qubit+i+1, 2*this->qubits)] = cos(Adecomp[2]);
     }
 
-    AK1Matrix[dense_fortran(2*qubit+2,2*qubit+1, 2*this->qubits)] =-sin(Adecomp[0]);
-    AK1Matrix[dense_fortran(2*qubit+4,2*qubit+3, 2*this->qubits)] =-sin(Adecomp[0]);
-    AK1Matrix[dense_fortran(2*qubit+1,2*qubit+2, 2*this->qubits)] = sin(Adecomp[0]);
-    AK1Matrix[dense_fortran(2*qubit+3,2*qubit+4, 2*this->qubits)] = sin(Adecomp[0]);
+    AK1Matrix[dense_fortran(2*qubit+2,2*qubit+1, 2*this->qubits)] =sin(Adecomp[0]);
+    AK1Matrix[dense_fortran(2*qubit+4,2*qubit+3, 2*this->qubits)] =sin(Adecomp[0]);
+    AK1Matrix[dense_fortran(2*qubit+1,2*qubit+2, 2*this->qubits)] =-sin(Adecomp[0]);
+    AK1Matrix[dense_fortran(2*qubit+3,2*qubit+4, 2*this->qubits)] =-sin(Adecomp[0]);
 
-    AK2Matrix[dense_fortran(2*qubit+2,2*qubit+1, 2*this->qubits)] =-sin(Adecomp[2]);
-    AK2Matrix[dense_fortran(2*qubit+4,2*qubit+3, 2*this->qubits)] =-sin(Adecomp[2]);
-    AK2Matrix[dense_fortran(2*qubit+1,2*qubit+2, 2*this->qubits)] = sin(Adecomp[2]);
-    AK2Matrix[dense_fortran(2*qubit+3,2*qubit+4, 2*this->qubits)] = sin(Adecomp[2]);
+    AK2Matrix[dense_fortran(2*qubit+2,2*qubit+1, 2*this->qubits)] =sin(Adecomp[2]);
+    AK2Matrix[dense_fortran(2*qubit+4,2*qubit+3, 2*this->qubits)] =sin(Adecomp[2]);
+    AK2Matrix[dense_fortran(2*qubit+1,2*qubit+2, 2*this->qubits)] =-sin(Adecomp[2]);
+    AK2Matrix[dense_fortran(2*qubit+3,2*qubit+4, 2*this->qubits)] =-sin(Adecomp[2]);
 
 
     for(int i = 0; i < AK1Matrix.size(); i++){
@@ -182,26 +171,12 @@ public:
       }
     }
 
-    std::cout << "AK1" <<std::endl;
-    print_fortran(AK1Matrix, 2*this->qubits);
-    std::cout << std::endl;
-
-    std::cout << "AK2" <<std::endl;
-    print_fortran(AK2Matrix, 2*this->qubits);
-    std::cout << std::endl;
-
-    std::cout << "BR" <<std::endl;
-    print_fortran(BRMatrix, 2*this->qubits);
-    std::cout << std::endl;
-
 
     std::vector<double> antipassive_vector(this->qubits/2, 0.);
-    std::cout << "qubit/2 = " << qubit/2 << std::endl;
 
-    antipassive_vector[qubit/2] = Adecomp[1]; //note that if qubit is odd then directly applying this antipassive will be wrong
-    std::cout << "applying BR matrix" << std::endl;
+
+    antipassive_vector[qubit/2] = -Adecomp[1]; //note that if qubit is odd then directly applying this antipassive will be wrong    
     this->apply_passive(PassiveFLO(this->qubits, BRMatrix, std::complex<double>(1.,0.)));
-    std::cout << "applying AK2 matrix" << std::endl;
     this->apply_passive(PassiveFLO(this->qubits, AK2Matrix, std::exp(std::complex<double>(0, Adecomp[2]))));
     if(qubit % 2 == 0){
       this->apply_antipassive(antipassive_vector);
@@ -216,18 +191,14 @@ public:
         permutation.R[dense_fortran(2*(qubit - 1) + 1 + i, 2*(qubit - 1) + 1 + i, 2*this->qubits)] = 0;
         permutation.R[dense_fortran(2*(qubit - 1) + 1 + i, 2*(qubit - 1) + 1 + ((i+2) % 6), 2*this->qubits)] = 1;
       }
-      std::cout << "permutation = " << std::endl;
-      print_fortran(permutation.R, 2*qubits);
-      std::cout << std::endl;
       DecomposedPassive d = permutation.decompose();
-      std::cout << d.phase << std::endl;
 
       this->apply_passive(CblasTrans, permutation);
       this->apply_antipassive(antipassive_vector);
       this->apply_passive(CblasNoTrans, permutation);
 
     }
-    std::cout << "applying AK1 matrix" << std::endl;
+
     this->apply_passive(PassiveFLO(this->qubits, AK1Matrix, std::exp(std::complex<double>(0., Adecomp[0]))));
   }
 
@@ -235,28 +206,24 @@ public:
     if(this->A2){
       PassiveFLO identity(this->qubits);
       identity.phase = std::complex<double>(1.,0.);
-      std::cout << identity.phase.value() << std::endl;
       this->apply_passive(identity);
     }
     if(other.A2){
       PassiveFLO identity(this->qubits);
       identity.phase = std::complex<double>(1.,0.);
-      std::cout << identity.phase.value() << std::endl;
       other.apply_passive(identity);
     }
-    std::cout << "this->K.phase = " << this->K.phase.value() << " this->omega " << this->omega << std::endl;
-    std::cout << "other.K.phase = " << other.K.phase.value() << " other.omega " << other.omega << std::endl;
-
-    for(int i = 0; i < this->qubits/2; i++){
-      std::cout << this->A[i] << " " << other.A[i] << ", ";
-    }
-    std::cout << std::endl;
-    print_fortran(this->K.R, 2*this->qubits);
-    print_fortran(other.K.R, 2*other.qubits);
-    std::cout << std::endl;
     return inner_prod(this->qubits, other.A, other.K, this->A, this->K)*this->omega*std::conj(other.omega);
   }
 
+  static FLOState computational_basis_state(int qubits, int x){
+    std::vector<int> x_vec(qubits, 0);
+    for(int i = 0; i < qubits; i++){
+      x_vec[i] = (x>>i) & 1;
+    }
+    return computational_basis_state(qubits, x_vec);
+  }
+  
   static FLOState computational_basis_state(int qubits, std::vector<int> x){
 
     int popcount = std::accumulate(x.begin(), x.end(), 0);
@@ -275,7 +242,6 @@ public:
 
     //this permutation swaps the elements of x so all the non-zero entries are at the start
     std::vector<std::pair<int,int> > permutation = reorder_vec(x);
-    std::cout << "generating cb state" << std::endl;
 
     for (auto it = permutation.rbegin(); it != permutation.rend(); ++it) {
       const std::pair<int,int>& pair = *it;
@@ -293,22 +259,10 @@ public:
       }
     }
 
-    /*
-      for(const std::pair<int,int> &pair: permutation){
-      for(int i = 0; i < 2*qubits;i++){
-      for (int i = 0; i < 2*qubits; i++) {
-      std::swap(state.K.R[dense_fortran(i+1, 2*pair.first+1,  2*qubits)],
-      state.K.R[dense_fortran(i+1, 2*pair.second+1, 2*qubits)]);
-      std::swap(state.K.R[dense_fortran(i+1, 2*pair.first+2,  2*qubits)],
-      state.K.R[dense_fortran(i+1, 2*pair.second+2, 2*qubits)]);
-
-      }
-      }
-    */
-
     DecomposedPassive d = state.K.decompose();
-    std::cout << d.phase << std::endl;
 
+    state.K.phase = d.phase;
+    state.omega /= d.phase;
     return state;
   }
 
